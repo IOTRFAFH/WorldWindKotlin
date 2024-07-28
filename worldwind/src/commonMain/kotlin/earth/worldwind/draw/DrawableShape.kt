@@ -68,24 +68,26 @@ open class DrawableShape protected constructor(): Drawable {
         dc.gl.enableVertexAttribArray(1 /*vertexTexCoord*/)
         dc.gl.enableVertexAttribArray(2 /*vertexTexCoord*/)
         dc.gl.enableVertexAttribArray(3 /*vertexTexCoord*/)
+        dc.gl.enableVertexAttribArray(4 /*vertexTexCoord*/)
 
         if (drawState.isLine) {
             program.enableOneVertexMode(false)
             program.loadScreen(dc.viewport.width.toFloat(), dc.viewport.height.toFloat())
-            dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 20, 0)
-            dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 20, 40)
-            dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 20, 80)
-            dc.gl.vertexAttribPointer(3 /*texCoord*/, 1, GL_FLOAT, false, 20, 56)
+            dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 40, 0)
+            dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 40, 80)
+            dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 40, 160)
+            dc.gl.vertexAttribPointer(3 /*texCoord + lineWidth*/, 2, GL_FLOAT, false, 40, 96)
+            dc.gl.vertexAttribPointer(4 /*color*/, 4, GL_FLOAT, false, 40, 104)
         } else {
             program.enableOneVertexMode(true)
             dc.gl.vertexAttribPointer(0 /*vertexPoint*/, 3, GL_FLOAT, false, drawState.vertexStride, 0)
             dc.gl.vertexAttribPointer(1 /*vertexPoint*/, 3, GL_FLOAT, false, drawState.vertexStride, 0)
             dc.gl.vertexAttribPointer(2 /*vertexPoint*/, 3, GL_FLOAT, false, drawState.vertexStride, 0)
+            dc.gl.vertexAttribPointer(4 /*vertexPoint*/, 3, GL_FLOAT, false, drawState.vertexStride, 0)
         }
         // Draw the specified primitives.
         for (idx in 0 until drawState.primCount) {
             val prim = drawState.prims[idx]
-            program.loadColor(prim.color)
             program.loadOpacity(prim.opacity)
             if (prim.texture?.bindTexture(dc) == true) {
                 program.loadTexCoordMatrix(prim.texCoordMatrix)
@@ -93,9 +95,8 @@ open class DrawableShape protected constructor(): Drawable {
             } else {
                 program.enableTexture(false)
             }
-            if (drawState.isLine) {
-                program.loadLineWidth(prim.lineWidth)
-            } else {
+            if (!drawState.isLine) {
+                program.loadColor(prim.color)
                 dc.gl.vertexAttribPointer(
                     3 /*vertexTexCoord*/,
                     prim.texCoordAttrib.size,
@@ -118,5 +119,6 @@ open class DrawableShape protected constructor(): Drawable {
         dc.gl.disableVertexAttribArray(1 /*vertexTexCoord*/)
         dc.gl.disableVertexAttribArray(2 /*vertexTexCoord*/)
         dc.gl.disableVertexAttribArray(3 /*vertexTexCoord*/)
+        dc.gl.disableVertexAttribArray(4 /*vertexTexCoord*/)
     }
 }

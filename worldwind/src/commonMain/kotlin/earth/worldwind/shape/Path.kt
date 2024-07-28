@@ -43,7 +43,7 @@ open class Path @JvmOverloads constructor(
     private val intermediateLocation = Location()
 
     companion object {
-        protected const val VERTEX_STRIDE = 10
+        protected const val VERTEX_STRIDE = 20
         protected val defaultOutlineImageOptions = ImageOptions().apply {
             resamplingMode = ResamplingMode.NEAREST_NEIGHBOR
             wrapMode = WrapMode.REPEAT
@@ -72,31 +72,45 @@ open class Path @JvmOverloads constructor(
         // Obtain a drawable form the render context pool, and compute distance to the render camera.
         val drawable: Drawable
         val drawState: DrawShapeState
+        val extrudeDrawable: Drawable
+        val extrudeDrawState: DrawShapeState
         val cameraDistance: Double
         if (isSurfaceShape) {
             val pool = rc.getDrawablePool<DrawableSurfaceShape>()
             drawable = DrawableSurfaceShape.obtain(pool)
             drawState = drawable.drawState
-            cameraDistance = cameraDistanceGeographic(rc, boundingSector)
             drawable.offset = rc.globe.offset
             drawable.sector.copy(boundingSector)
+
+            extrudeDrawable = DrawableSurfaceShape.obtain(pool)
+            extrudeDrawState = extrudeDrawable.drawState
+            extrudeDrawable.offset = rc.globe.offset
+            extrudeDrawable.sector.copy(boundingSector)
+
+            cameraDistance = cameraDistanceGeographic(rc, boundingSector)
         } else {
             val pool = rc.getDrawablePool<DrawableShape>()
             drawable = DrawableShape.obtain(pool)
             drawState = drawable.drawState
+
+            extrudeDrawable = DrawableShape.obtain(pool)
+            extrudeDrawState = extrudeDrawable.drawState
             cameraDistance = cameraDistanceCartesian(rc, vertexArray, vertexArray.size, VERTEX_STRIDE, vertexOrigin)
         }
 
         // Use triangles mode to draw lines
         drawState.isLine = true
+        extrudeDrawState.isLine = false
 
         // Use the basic GLSL program to draw the shape.
         drawState.program = rc.getShaderProgram { TriangleShaderProgram() }
+        extrudeDrawState.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
         drawState.vertexBuffer = rc.getBufferObject(vertexBufferKey) {
             FloatBufferObject(GL_ARRAY_BUFFER, vertexArray, vertexArray.size)
         }
+        extrudeDrawState.vertexBuffer = drawState.vertexBuffer
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {
@@ -107,6 +121,7 @@ open class Path @JvmOverloads constructor(
             for (element in verticalElements) array[index++] = element
             IntBufferObject(GL_ELEMENT_ARRAY_BUFFER, array)
         }
+        extrudeDrawState.elementBuffer = drawState.elementBuffer
 
         // Configure the drawable to use the outline texture when drawing the outline.
         if (activeAttributes.isDrawOutline) {
@@ -123,9 +138,7 @@ open class Path @JvmOverloads constructor(
         // Configure the drawable to display the shape's outline. Increase surface shape line widths by 1/2 pixel. Lines
         // drawn indirectly offscreen framebuffer appear thinner when sampled as a texture.
         if (activeAttributes.isDrawOutline) {
-            drawState.color(if (rc.isPickMode) pickColor else activeAttributes.outlineColor)
             drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
-            drawState.lineWidth(activeAttributes.outlineWidth + if (isSurfaceShape) 0.5f else 0f)
             drawState.drawElements(
                 GL_TRIANGLE_STRIP, outlineElements.size,
                 GL_UNSIGNED_INT, interiorElements.size * Int.SIZE_BYTES
@@ -137,9 +150,7 @@ open class Path @JvmOverloads constructor(
 
         // Configure the drawable to display the shape's extruded verticals.
         if (activeAttributes.isDrawOutline && activeAttributes.isDrawVerticals && isExtrude) {
-            drawState.color(if (rc.isPickMode) pickColor else activeAttributes.outlineColor)
             drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
-            drawState.lineWidth(activeAttributes.outlineWidth)
             drawState.drawElements(
                 GL_TRIANGLES, verticalElements.size,
                 GL_UNSIGNED_INT, (interiorElements.size + outlineElements.size) * Int.SIZE_BYTES
@@ -148,9 +159,9 @@ open class Path @JvmOverloads constructor(
 
         // Configure the drawable to display the shape's extruded interior.
         if (activeAttributes.isDrawInterior && isExtrude) {
-            drawState.color(if (rc.isPickMode) pickColor else activeAttributes.interiorColor)
-            drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
-            drawState.drawElements(
+            extrudeDrawState.color(if (rc.isPickMode) pickColor else activeAttributes.interiorColor)
+            extrudeDrawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
+            extrudeDrawState.drawElements(
                 GL_TRIANGLE_STRIP, interiorElements.size,
                 GL_UNSIGNED_INT, 0
             )
@@ -162,9 +173,20 @@ open class Path @JvmOverloads constructor(
         drawState.enableDepthTest = activeAttributes.isDepthTest
         drawState.enableDepthWrite = activeAttributes.isDepthWrite
 
+        extrudeDrawState.vertexOrigin.copy(vertexOrigin)
+        extrudeDrawState.enableCullFace = false
+        extrudeDrawState.enableDepthTest = activeAttributes.isDepthTest
+        extrudeDrawState.enableDepthWrite = activeAttributes.isDepthWrite
+        extrudeDrawState.vertexStride = VERTEX_STRIDE * 2
+
         // Enqueue the drawable for processing on the OpenGL thread.
-        if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
-        else rc.offerShapeDrawable(drawable, cameraDistance)
+        if (isSurfaceShape) {
+            rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
+        }
+        else {
+            rc.offerShapeDrawable(drawable, cameraDistance)
+            rc.offerShapeDrawable(extrudeDrawable, cameraDistance)
+        }
     }
 
     protected open fun mustAssembleGeometry(rc: RenderContext) = vertexArray.isEmpty()
@@ -259,18 +281,32 @@ open class Path @JvmOverloads constructor(
             texCoord1d += point.distanceTo(prevPoint)
         }
         prevPoint.copy(point)
+
+        val outlineColor = if (rc.isPickMode) pickColor else activeAttributes.outlineColor
+        val outlineWidth = activeAttributes.outlineWidth + if (isSurfaceShape) 0.5f else 0f
         if (isSurfaceShape) {
             vertexArray[vertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = 1.0f
             vertexArray[vertexIndex++] = texCoord1d.toFloat()
+            vertexArray[vertexIndex++] = outlineWidth
+            vertexArray[vertexIndex++] = outlineColor.red
+            vertexArray[vertexIndex++] = outlineColor.green
+            vertexArray[vertexIndex++] = outlineColor.blue
+            vertexArray[vertexIndex++] = outlineColor.alpha
 
             vertexArray[vertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = -1.0f
             vertexArray[vertexIndex++] = texCoord1d.toFloat()
+            vertexArray[vertexIndex++] = outlineWidth
+            vertexArray[vertexIndex++] = outlineColor.red
+            vertexArray[vertexIndex++] = outlineColor.green
+            vertexArray[vertexIndex++] = outlineColor.blue
+            vertexArray[vertexIndex++] = outlineColor.alpha
+
             if (!firstOrLast) {
                 outlineElements.add(vertex)
                 outlineElements.add(vertex.inc())
@@ -281,11 +317,22 @@ open class Path @JvmOverloads constructor(
             vertexArray[vertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = 1.0f
             vertexArray[vertexIndex++] = texCoord1d.toFloat()
+            vertexArray[vertexIndex++] = outlineWidth
+            vertexArray[vertexIndex++] = outlineColor.red
+            vertexArray[vertexIndex++] = outlineColor.green
+            vertexArray[vertexIndex++] = outlineColor.blue
+            vertexArray[vertexIndex++] = outlineColor.alpha
+
             vertexArray[vertexIndex++] = (point.x - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (point.y - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = -1.0f
             vertexArray[vertexIndex++] = texCoord1d.toFloat()
+            vertexArray[vertexIndex++] = outlineWidth
+            vertexArray[vertexIndex++] = outlineColor.red
+            vertexArray[vertexIndex++] = outlineColor.green
+            vertexArray[vertexIndex++] = outlineColor.blue
+            vertexArray[vertexIndex++] = outlineColor.alpha
             if (!firstOrLast) {
                 outlineElements.add(vertex)
                 outlineElements.add(vertex.inc())
@@ -300,7 +347,17 @@ open class Path @JvmOverloads constructor(
                 vertexArray[extrudeIndex++] = (point.z - vertexOrigin.z).toFloat()
                 vertexArray[extrudeIndex++] = 0f
                 vertexArray[extrudeIndex++] = 0f
+                vertexArray[extrudeIndex++] = (point.x - vertexOrigin.x).toFloat()
+                vertexArray[extrudeIndex++] = (point.y - vertexOrigin.y).toFloat()
+                vertexArray[extrudeIndex++] = (point.z - vertexOrigin.z).toFloat()
+                vertexArray[extrudeIndex++] = 0f
+                vertexArray[extrudeIndex++] = 0f
 
+                vertexArray[extrudeIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
+                vertexArray[extrudeIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
+                vertexArray[extrudeIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
+                vertexArray[extrudeIndex++] = 0f
+                vertexArray[extrudeIndex++] = 0f
                 vertexArray[extrudeIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                 vertexArray[extrudeIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                 vertexArray[extrudeIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
@@ -319,48 +376,88 @@ open class Path @JvmOverloads constructor(
                     vertexArray[verticalIndex++] = (point.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = 1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (point.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (point.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (point.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = -1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (point.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (point.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (point.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = 1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (point.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (point.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (point.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = -1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = 1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = -1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = 1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     vertexArray[verticalIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                     vertexArray[verticalIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                     vertexArray[verticalIndex++] = -1f
                     vertexArray[verticalIndex++] = 0f
+                    vertexArray[verticalIndex++] = outlineWidth
+                    vertexArray[verticalIndex++] = outlineColor.red
+                    vertexArray[verticalIndex++] = outlineColor.green
+                    vertexArray[verticalIndex++] = outlineColor.blue
+                    vertexArray[verticalIndex++] = outlineColor.alpha
 
                     verticalElements.add(index)
                     verticalElements.add(index + 1)

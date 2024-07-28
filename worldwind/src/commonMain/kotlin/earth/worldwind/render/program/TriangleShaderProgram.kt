@@ -10,7 +10,6 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     override var programSources = arrayOf(
         """
             uniform mat4 mvpMatrix;
-            uniform float lineWidth;
             uniform float invMiterLengthCutoff;
             uniform vec2 screen;
             uniform bool enableTexture;
@@ -21,19 +20,27 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             attribute vec4 pointB;
             attribute vec4 pointC;
             attribute vec2 vertexTexCoord;
+            attribute vec4 vertexColor;
             
             varying vec2 texCoord;
+            varying vec4 outVertexColor;
             
             void main() {
                 if (enableOneVertexMode) {
                     /* Transform the vertex position by the modelview-projection matrix. */
                     gl_Position = mvpMatrix * vec4(pointA.xyz, 1.0);
+                    
+                    /* Transform the vertex tex coord by the tex coord matrix. */
+                    if (enableTexture) {
+                        texCoord = (texCoordMatrix * vec3(vertexTexCoord, 1.0)).st;
+                    }
                 } else {
                     /* Transform the vertex position by the modelview-projection matrix. */
                     vec4 pointAScreen = mvpMatrix * vec4(pointA.xyz, 1);
                     vec4 pointBScreen = mvpMatrix * vec4(pointB.xyz, 1);
                     vec4 pointCScreen = mvpMatrix * vec4(pointC.xyz, 1);
                     float corner = pointB.w;
+                    float lineWidth = vertexTexCoord.y;
                     
                     pointAScreen = pointAScreen / pointAScreen.w;
                     pointBScreen = pointBScreen / pointBScreen.w;
@@ -60,13 +67,14 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
                     vec2 normalA = vec2(-AB.y, AB.x);
                     float miterLength = 1.0 / max(dot(miter, normalA), invMiterLengthCutoff);
                     
+                    outVertexColor = vertexColor;
                     gl_Position = pointBScreen;
                     gl_Position.xy = gl_Position.xy + (corner * miter * lineWidth * miterLength) / screen.xy;
-                }
-                
-                /* Transform the vertex tex coord by the tex coord matrix. */
-                if (enableTexture) {
-                    texCoord = (texCoordMatrix * vec3(vertexTexCoord, 1.0)).st;
+                    
+                    /* Transform the vertex tex coord by the tex coord matrix. */
+                    if (enableTexture) {
+                        texCoord = (texCoordMatrix * vec3(vertexTexCoord.x, 1.0, 1.0)).st;
+                    }
                 }
             }
         """.trimIndent(),
@@ -75,23 +83,26 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             
             uniform bool enablePickMode;
             uniform bool enableTexture;
+            uniform bool enableOneVertexMode;
             uniform vec4 color;
             uniform float opacity;
             uniform sampler2D texSampler;
             
             varying vec2 texCoord;
+            varying vec4 outVertexColor;
             
             void main() {
+                vec4 useColor = enableOneVertexMode ? color : outVertexColor;
                 if (enablePickMode && enableTexture) {
                     /* Modulate the RGBA color with the 2D texture's Alpha component (rounded to 0.0 or 1.0). */
                     float texMask = floor(texture2D(texSampler, texCoord).a + 0.5);
-                    gl_FragColor = color * texMask;
+                    gl_FragColor = useColor * texMask;
                 } else if (!enablePickMode && enableTexture) {
                     /* Modulate the RGBA color with the 2D texture's RGBA color. */
-                    gl_FragColor = color * texture2D(texSampler, texCoord) * opacity;
+                    gl_FragColor = useColor * texture2D(texSampler, texCoord) * opacity;
                 } else {
                     /* Return the RGBA color as-is. */
-                    gl_FragColor = color * opacity;
+                    gl_FragColor = useColor * opacity;
                 }
             }
         """.trimIndent()
@@ -105,7 +116,6 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected val texCoordMatrix = Matrix3()
     protected val color = Color()
     protected var opacity = 1.0f
-    protected var lineWidth = 1.0f
     protected var invMiterLengthCutoff = 1.0f
     protected var screenX = 0.0f
     protected var screenY = 0.0f
@@ -113,7 +123,6 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected var mvpMatrixId = KglUniformLocation.NONE
     protected var colorId = KglUniformLocation.NONE
     protected var opacityId = KglUniformLocation.NONE
-    protected var lineWidthId = KglUniformLocation.NONE
     protected var invMiterLengthCutoffId = KglUniformLocation.NONE
     protected var screenId = KglUniformLocation.NONE
     protected var enablePickModeId = KglUniformLocation.NONE
@@ -134,8 +143,6 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
 
         opacityId = gl.getUniformLocation(program, "opacity")
         gl.uniform1f(opacityId, opacity)
-        lineWidthId = gl.getUniformLocation(program, "lineWidth")
-        gl.uniform1f(lineWidthId, lineWidth)
         invMiterLengthCutoffId = gl.getUniformLocation(program, "invMiterLengthCutoff")
         gl.uniform1f(invMiterLengthCutoffId, invMiterLengthCutoff)
         screenId = gl.getUniformLocation(program, "screen")
@@ -198,13 +205,6 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         if (this.opacity != opacity) {
             this.opacity = opacity
             gl.uniform1f(opacityId, opacity)
-        }
-    }
-
-    fun loadLineWidth(lineWidth : Float) {
-        if (this.lineWidth != lineWidth) {
-            this.lineWidth = lineWidth
-            gl.uniform1f(lineWidthId, lineWidth)
         }
     }
 

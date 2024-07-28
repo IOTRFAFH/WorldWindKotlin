@@ -46,6 +46,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
         dc.gl.enableVertexAttribArray(1 /*vertexTexCoord*/)
         dc.gl.enableVertexAttribArray(2 /*vertexTexCoord*/)
         dc.gl.enableVertexAttribArray(3 /*vertexTexCoord*/)
+        dc.gl.enableVertexAttribArray(4 /*vertexTexCoord*/)
 
         // Accumulate shapes in the draw context's scratch list.
         // TODO accumulate in a geospatial quadtree
@@ -79,6 +80,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             dc.gl.disableVertexAttribArray(1 /*vertexTexCoord*/)
             dc.gl.disableVertexAttribArray(2 /*vertexTexCoord*/)
             dc.gl.disableVertexAttribArray(3 /*vertexTexCoord*/)
+            dc.gl.disableVertexAttribArray(4 /*vertexTexCoord*/)
         }
     }
 
@@ -139,10 +141,11 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                     program.enableOneVertexMode(false)
                     program.loadScreen(colorAttachment.width.toFloat(), colorAttachment.height.toFloat())
 
-                    dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 20, 0)
-                    dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 20, 40)
-                    dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 20, 80)
-                    dc.gl.vertexAttribPointer(3 /*vertexTexCoord*/, 1, GL_FLOAT, false, 20, 56)
+                    dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 40, 0)
+                    dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 40, 80)
+                    dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 40, 160)
+                    dc.gl.vertexAttribPointer(3 /*texCoord + lineWidth*/, 2, GL_FLOAT, false, 40, 96)
+                    dc.gl.vertexAttribPointer(4 /*color*/, 4, GL_FLOAT, false, 40, 104)
                 } else {
                     program.enableOneVertexMode(true)
 
@@ -150,11 +153,11 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                     dc.gl.vertexAttribPointer(0 /*vertexPoint*/, 3, GL_FLOAT, false, shape.drawState.vertexStride, 0)
                     dc.gl.vertexAttribPointer(1 /*vertexPoint*/, 3, GL_FLOAT, false, shape.drawState.vertexStride, 0)
                     dc.gl.vertexAttribPointer(2 /*vertexPoint*/, 3, GL_FLOAT, false, shape.drawState.vertexStride, 0)
+                    dc.gl.vertexAttribPointer(4 /*vertexPoint*/, 3, GL_FLOAT, false, shape.drawState.vertexStride, 0)
                 }
                 // Draw the specified primitives to the framebuffer texture.
                 for (primIdx in 0 until shape.drawState.primCount) {
                     val prim = shape.drawState.prims[primIdx]
-                    program.loadColor(prim.color)
                     program.loadOpacity(prim.opacity)
                     if (prim.texture?.bindTexture(dc) == true) {
                         program.loadTexCoordMatrix(prim.texCoordMatrix)
@@ -162,9 +165,8 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                     } else {
                         program.enableTexture(false)
                     }
-                    if (shape.drawState.isLine) {
-                        program.loadLineWidth(prim.lineWidth)
-                    } else {
+                    if (!shape.drawState.isLine) {
+                        program.loadColor(prim.color)
                         dc.gl.vertexAttribPointer(
                             3 /*vertexTexCoord*/,
                             prim.texCoordAttrib.size,
@@ -197,6 +199,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             if (!terrain.useVertexPointAttrib(dc, 0 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
             if (!terrain.useVertexPointAttrib(dc, 1 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
             if (!terrain.useVertexPointAttrib(dc, 2 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
+            if (!terrain.useVertexPointAttrib(dc, 4 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
             if (!terrain.useVertexTexCoordAttrib(dc, 3 /*vertexTexCoord*/)) return // terrain vertex attribute failed to bind
             val colorAttachment = dc.scratchFramebuffer.getAttachedTexture(GL_COLOR_ATTACHMENT0)
             if (!colorAttachment.bindTexture(dc)) return  // framebuffer texture failed to bind
