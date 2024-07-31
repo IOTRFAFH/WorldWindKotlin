@@ -4,6 +4,7 @@ import earth.worldwind.draw.DrawShapeState
 import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
 import earth.worldwind.draw.DrawableSurfaceShape
+import earth.worldwind.draw.VertexBufferWithAttribs
 import earth.worldwind.geom.*
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
@@ -107,10 +108,17 @@ open class Path @JvmOverloads constructor(
         extrudeDrawState.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
-        drawState.vertexBuffer = rc.getBufferObject(vertexBufferKey) {
-            FloatBufferObject(GL_ARRAY_BUFFER, vertexArray, vertexArray.size)
-        }
-        extrudeDrawState.vertexBuffer = drawState.vertexBuffer
+        val vertexBufferSecondary = VertexBufferWithAttribs()
+        vertexBufferSecondary.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
+        vertexBufferSecondary.addAttribute(0, 4, GL_FLOAT, false, 40, 0) // pointA
+        vertexBufferSecondary.addAttribute(1, 4, GL_FLOAT, false, 40, 80) // pointB
+        vertexBufferSecondary.addAttribute(2, 4, GL_FLOAT, false, 40, 160) // pointC
+        vertexBufferSecondary.addAttribute(3, 1, GL_FLOAT, false, 40,96) // texCoord
+        vertexBufferSecondary.addAttribute(4, 4, GL_FLOAT, false, 40,104) // color
+        vertexBufferSecondary.addAttribute(5, 1, GL_FLOAT, false, 40,100) // lineWidth
+
+        drawState.addVertexBuffer(vertexBufferSecondary)
+        extrudeDrawState.addVertexBuffer(vertexBufferSecondary)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {

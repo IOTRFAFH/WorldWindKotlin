@@ -4,6 +4,7 @@ import earth.worldwind.draw.DrawShapeState
 import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
 import earth.worldwind.draw.DrawableSurfaceShape
+import earth.worldwind.draw.VertexBufferWithAttribs
 import earth.worldwind.geom.*
 import earth.worldwind.geom.Angle.Companion.ZERO
 import earth.worldwind.geom.Angle.Companion.toDegrees
@@ -288,7 +289,15 @@ open class Ellipse @JvmOverloads constructor(
         drawState.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
-        drawState.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
+        val vertexBufferPrimary = VertexBufferWithAttribs()
+        vertexBufferPrimary.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
+        vertexBufferPrimary.addAttribute(0, 4, GL_FLOAT, false, VERTEX_STRIDE * 4, 0)
+        vertexBufferPrimary.addAttribute(1, 0, GL_FLOAT, false, 0, 0)
+        vertexBufferPrimary.addAttribute(2, 0, GL_FLOAT, false,0, 0)
+        vertexBufferPrimary.addAttribute(3, 2, GL_FLOAT, false, VERTEX_STRIDE * 4,12)
+        vertexBufferPrimary.addAttribute(4, 0, GL_FLOAT, false,0,0)
+        vertexBufferPrimary.addAttribute(5, 0, GL_FLOAT, false, 0,0)
+        drawState.addVertexBuffer(vertexBufferPrimary)
 
         // Get the attributes of the element buffer
         val elementBufferKey = elementBufferKeys[activeIntervals] ?: Any().also { elementBufferKeys[activeIntervals] = it }
@@ -300,7 +309,15 @@ open class Ellipse @JvmOverloads constructor(
         drawStateLines.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
-        drawStateLines.vertexBuffer = rc.getBufferObject(lineVertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, lineVertexArray) }
+        val vertexBufferSecondary = VertexBufferWithAttribs()
+        vertexBufferSecondary.vertexBuffer = rc.getBufferObject(lineVertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, lineVertexArray) }
+        vertexBufferSecondary.addAttribute(0, 4, GL_FLOAT, false, 40, 0) // pointA
+        vertexBufferSecondary.addAttribute(1, 4, GL_FLOAT, false, 40, 80) // pointB
+        vertexBufferSecondary.addAttribute(2, 4, GL_FLOAT, false, 40, 160) // pointC
+        vertexBufferSecondary.addAttribute(3, 1, GL_FLOAT, false, 40,96) // texCoord
+        vertexBufferSecondary.addAttribute(4, 4, GL_FLOAT, false, 40,104) // color
+        vertexBufferSecondary.addAttribute(5, 1, GL_FLOAT, false, 40,100) // lineWidth
+        drawStateLines.addVertexBuffer(vertexBufferSecondary)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawStateLines.elementBuffer = rc.getBufferObject(lineElementBufferKey) {
@@ -353,7 +370,6 @@ open class Ellipse @JvmOverloads constructor(
         // Configure the drawable to display the shape's interior.
         drawState.color(if (rc.isPickMode) pickColor else activeAttributes.interiorColor)
         drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
-        drawState.texCoordAttrib(2 /*size*/, 12 /*offset in bytes*/)
         val top = drawState.elementBuffer!!.ranges[TOP_RANGE]!!
         drawState.drawElements(GL_TRIANGLE_STRIP, top.length, GL_UNSIGNED_SHORT, top.lower * 2 /*offset*/)
         if (isExtrude) {

@@ -1,7 +1,6 @@
 package earth.worldwind.draw
 
 import earth.worldwind.geom.Matrix4
-import earth.worldwind.render.Color
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.util.Pool
 import earth.worldwind.util.kgl.GL_DEPTH_TEST
@@ -52,7 +51,7 @@ open class DrawableLines protected constructor(): Drawable {
         program.enableTexture(false)
 
         // Ensure program is in triangles mode
-        program.enableOneVertexMode(false)
+        program.enableLinesMode(true)
 
         // Use the leader's opacity.
         program.loadOpacity(opacity)
@@ -71,13 +70,15 @@ open class DrawableLines protected constructor(): Drawable {
         dc.gl.enableVertexAttribArray(2 /*value*/)
         dc.gl.enableVertexAttribArray(3 /*value*/)
         dc.gl.enableVertexAttribArray(4 /*value*/)
+        dc.gl.enableVertexAttribArray(5 /*value*/)
 
         // Use the shape's vertex point attribute and vertex texture coordinate attribute.
         dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 40, offset + 0)
         dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 40, offset + 80)
         dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 40, offset + 160)
-        dc.gl.vertexAttribPointer(3 /*texCoord + lineWidth*/, 2, GL_FLOAT, false, 40, offset + 96)
+        dc.gl.vertexAttribPointer(3 /*texCoord*/, 1, GL_FLOAT, false, 40, offset + 96)
         dc.gl.vertexAttribPointer(4 /*color*/, 4, GL_FLOAT, false, 40, offset + 104)
+        dc.gl.vertexAttribPointer(5 /*lineWidth*/, 1, GL_FLOAT, false, 40, offset + 100)
 
         // Draw the leader line.
         dc.gl.drawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
@@ -89,5 +90,6 @@ open class DrawableLines protected constructor(): Drawable {
         dc.gl.disableVertexAttribArray(2 /*value*/)
         dc.gl.disableVertexAttribArray(3 /*value*/)
         dc.gl.disableVertexAttribArray(4 /*value*/)
+        dc.gl.disableVertexAttribArray(5 /*value*/)
     }
 }
