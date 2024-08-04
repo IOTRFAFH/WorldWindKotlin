@@ -20,10 +20,10 @@ open class StaticPathData(
 }
 
 open class StaticPath @JvmOverloads constructor(
-    pathes: List<StaticPathData>, attributes: ShapeAttributes = ShapeAttributes()
+    pathes: MutableList<StaticPathData> = mutableListOf<StaticPathData>(), attributes: ShapeAttributes = ShapeAttributes()
 ): AbstractShape(attributes) {
 
-    protected val pathes = pathes
+    protected val pathes  = pathes
     val pathesCount get() = pathes.size
 
     protected var vertexArray = FloatArray(0)
@@ -45,6 +45,12 @@ open class StaticPath @JvmOverloads constructor(
         protected const val VERTEX_STRIDE = 8
 
         protected fun nextCacheKey() = Any()
+    }
+
+    fun addPath(staticPathData : StaticPathData): Boolean {
+        reset()
+        // TODO Make deep copy of positions the same way as for single position shapes?
+        return pathes.add(staticPathData)
     }
 
     override fun reset() {
@@ -96,7 +102,7 @@ open class StaticPath @JvmOverloads constructor(
         vertexBuffer.addAttribute(0, 4, GL_FLOAT, false, 16, 0) // pointA
         vertexBuffer.addAttribute(1, 4, GL_FLOAT, false, 16, 32) // pointB
         vertexBuffer.addAttribute(2, 4, GL_FLOAT, false, 16, 64) // pointC
-        vertexBuffer.addAttribute(3, 0, GL_FLOAT, false, 0,0) // texCoord
+        vertexBuffer.addAttribute(3, 1, GL_FLOAT, false, 0,0) // texCoord
         drawState.addVertexBuffer(vertexBuffer)
 
         val colorBuffer = VertexBufferWithAttribs()
@@ -175,20 +181,20 @@ open class StaticPath @JvmOverloads constructor(
 
             // Add the first vertex.
             var begin = positions[0]
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false /*intermediate*/, false)
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false /*intermediate*/, false)
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
             // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
             for (idx in 1 until positions.size) {
                 val end = positions[idx]
                 addIntermediateVertices(rc, begin, end)
-                addVertex(rc, end.latitude, end.longitude, end.altitude, false /*intermediate*/, true)
+                addVertex(rc, end.latitude, end.longitude, end.altitude, true)
                 begin = end
             }
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude,false /*intermediate*/, false)
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude,true )
 
             for(idx in tempVertexIndex until vertexIndex * 2 / VERTEX_STRIDE) {
-                colorArray[idx] = pathes[i].color.toColorInt()
-                widthArray[idx] = pathes[i].lineWidth
+                colorArray[idx] = pathes[i].color.toColorIntRGBA()
+                widthArray[idx] = pathes[i].lineWidth + if (isSurfaceShape) 0.5f else 0f
             }
 
             tempVertexIndex = vertexIndex * 2 / VERTEX_STRIDE
@@ -235,14 +241,14 @@ open class StaticPath @JvmOverloads constructor(
                 RHUMB_LINE -> begin.rhumbLocation(azimuth, dist, loc)
                 else -> {}
             }
-            addVertex(rc, loc.latitude, loc.longitude, alt, true /*intermediate*/, true /*addIndices*/)
+            addVertex(rc, loc.latitude, loc.longitude, alt, true )
             dist += deltaDist
             alt += deltaAlt
         }
     }
 
     protected open fun addVertex(
-        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, intermediate: Boolean, addIndices : Boolean
+        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, addIndices : Boolean
     ) {
         val vertex = (vertexIndex / VERTEX_STRIDE - 1) * 2
         val point = rc.geographicToCartesian(latitude, longitude, altitude, altitudeMode, point)
@@ -266,8 +272,8 @@ open class StaticPath @JvmOverloads constructor(
                 outlineElements.add(vertex - 1) // 1    |  / | ----> line goes this way
                 outlineElements.add(vertex) // 2        | /  | ----> line goes this way
                 outlineElements.add(vertex) // 2        1 -- 3
-                outlineElements.add(vertex + 1) // 1
-                outlineElements.add(vertex - 1) // 3
+                outlineElements.add(vertex - 1) // 1
+                outlineElements.add(vertex + 1) // 3
             }
         } else {
             vertexArray[vertexIndex++] = (point.x - vertexOrigin.x).toFloat()
@@ -283,8 +289,8 @@ open class StaticPath @JvmOverloads constructor(
                 outlineElements.add(vertex - 1) // 1    |  / | ----> line goes this way
                 outlineElements.add(vertex) // 2        | /  | ----> line goes this way
                 outlineElements.add(vertex) // 2        1 -- 3
-                outlineElements.add(vertex + 1) // 1
-                outlineElements.add(vertex - 1) // 3
+                outlineElements.add(vertex - 1) // 1
+                outlineElements.add(vertex + 1) // 3
             }
         }
     }

@@ -107,7 +107,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             }
         """.trimIndent()
     )
-    override val attribBindings = arrayOf("pointA", "pointB", "pointC", "vertexTexCoord")
+    override val attribBindings = arrayOf("pointA", "pointB", "pointC", "vertexTexCoord", "vertexColor", "lineWidth")
 
     protected var enablePickMode = false
     protected var enableTexture = false

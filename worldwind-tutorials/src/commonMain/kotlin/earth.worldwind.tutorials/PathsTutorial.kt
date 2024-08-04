@@ -17,7 +17,7 @@ class PathsTutorial(private val engine: WorldWind) : AbstractTutorial() {
         // Static Path testing
         addRenderable(
             StaticPath(
-                listOf(
+                mutableListOf(
                     StaticPathData(
                         listOf(
                             Position.fromDegrees(50.0, -180.0, 1e5),
@@ -32,6 +32,23 @@ class PathsTutorial(private val engine: WorldWind) : AbstractTutorial() {
                         Color(0.0f,1.0f,0.0f,1.0f), 2.0f),
                 )
             )
+        )
+
+        addRenderable(
+            StaticPath(
+                mutableListOf(
+                    StaticPathData(
+                        listOf(
+                    Position.fromDegrees(40.0, -180.0, 0.0),
+                    Position.fromDegrees(20.0, -100.0, 0.0),
+                    Position.fromDegrees(40.0, -40.0, 0.0)
+                        ), Color(1.0f,0.0f,0.0f,1.0f), 1.0f
+                    )
+                )
+            ).apply {
+                altitudeMode = AltitudeMode.CLAMP_TO_GROUND // clamp the path vertices to the ground
+                isFollowTerrain = true // follow the ground between path vertices
+            }
         )
 
 //        // Create a basic path with the default attributes, the default altitude mode (ABSOLUTE),

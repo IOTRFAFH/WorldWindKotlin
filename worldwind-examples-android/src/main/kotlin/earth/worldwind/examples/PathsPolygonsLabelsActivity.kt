@@ -78,8 +78,15 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
          * are added to the RenderableLayer on the UI thread via onProgressUpdate.
          */
         override fun doInBackground(vararg params: Void): Void? {
-            loadCountriesFile()
-            loadHighways()
+            val staticPath = StaticPath().apply {
+                altitudeMode = AltitudeMode.CLAMP_TO_GROUND
+                pathType = PathType.LINEAR
+                isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
+                displayName = "Batched lines"
+            }
+            loadCountriesFile(staticPath)
+            loadHighways(staticPath)
+            publishProgress(staticPath)
             loadPlaceNames()
             return null
         }
@@ -160,16 +167,16 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
         /**
          * Creates Path objects from the VMAP0 World Highways data. Called by doInBackground().
          */
-        private fun loadHighways() {
+        private fun loadHighways(staticPath : StaticPath) {
             // Define the normal shape attributes
-            val attrs = ShapeAttributes()
-            attrs.outlineColor.set(1.0f, 1.0f, 0.0f, 1.0f)
-            attrs.outlineWidth = 3f
+//            val attrs = ShapeAttributes()
+//            attrs.outlineColor.set(1.0f, 1.0f, 0.0f, 1.0f)
+//            attrs.outlineWidth = 3f
 
             // Define the shape attributes used for highlighted "highways"
-            val highlightAttrs = ShapeAttributes()
-            highlightAttrs.outlineColor.set(1.0f, 0.0f, 0.0f, 1.0f)
-            highlightAttrs.outlineWidth = 7f
+//            val highlightAttrs = ShapeAttributes()
+//            highlightAttrs.outlineColor.set(1.0f, 0.0f, 0.0f, 1.0f)
+//            highlightAttrs.outlineWidth = 7f
 
             // Load the highways
             try {
@@ -202,15 +209,17 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             val xy = tuple.split(" ")
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
-                        val path = Path(positions, attrs)
-                        path.highlightAttributes = highlightAttrs
-                        path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
-                        path.pathType = PathType.LINEAR
-                        path.isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
-                        path.displayName = attributes
 
-                        // Add the Path object to the RenderableLayer on the UI Thread (see onProgressUpdate)
-                        publishProgress(path)
+                        staticPath.addPath(StaticPathData(positions, Color(1.0f, 1.0f, 0.0f, 1.0f), 3f))
+//                        val path = Path(positions, attrs)
+//                        path.highlightAttributes = highlightAttrs
+//                        path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
+//                        path.pathType = PathType.LINEAR
+//                        path.isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
+//                        path.displayName = attributes
+//
+//                        // Add the Path object to the RenderableLayer on the UI Thread (see onProgressUpdate)
+//                        publishProgress(path)
                         numHighwaysCreated++
                     }
                 }
@@ -222,18 +231,20 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
         /**
          * Creates Polygon objects from the e VMAP0 World Political Areas data. Called by doInBackground().
          */
-        private fun loadCountriesFile() {
+        private fun loadCountriesFile(staticPath : StaticPath) {
             // Define the normal shape attributes
             val commonAttrs = ShapeAttributes()
             commonAttrs.interiorColor.set(1.0f, 1.0f, 0.0f, 0.5f)
             commonAttrs.outlineColor.set(0.0f, 0.0f, 0.0f, 1.0f)
             commonAttrs.outlineWidth = 3f
+            commonAttrs.isDrawOutline = false
 
             // Define the shape attributes used for highlighted countries
             val highlightAttrs = ShapeAttributes()
             highlightAttrs.interiorColor.set(1.0f, 1.0f, 1.0f, 0.5f)
             highlightAttrs.outlineColor.set(1.0f, 1.0f, 1.0f, 1.0f)
             highlightAttrs.outlineWidth = 5f
+            highlightAttrs.isDrawOutline = false
 
             // Load the countries
             try {
@@ -269,6 +280,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                                     blue = random.nextFloat(),
                                     alpha = 0.3f
                                 )
+                                isDrawOutline = false
                             }
                             highlightAttributes = highlightAttrs
                         }
@@ -289,6 +301,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                                 positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                             }
                             polygon.addBoundary(positions)
+                            staticPath.addPath(StaticPathData(positions, polygon.attributes.outlineColor, polygon.attributes.outlineWidth))
 
                             // Locate the next polygon in the feature
                             polyStart = feature.indexOf("(", polyEnd)

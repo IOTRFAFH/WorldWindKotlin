@@ -138,8 +138,8 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                             dc.gl.vertexAttribPointer(
                                 vertexAttribute.index /*pointA*/,
                                 vertexAttribute.size,
-                                GL_FLOAT,
-                                false,
+                                vertexAttribute.type,
+                                vertexAttribute.normalized,
                                 vertexAttribute.stride,
                                 vertexAttribute.offset
                             )
@@ -200,10 +200,10 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
         try {
             if (!terrain.useVertexPointAttrib(dc, 0 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
             if (!terrain.useVertexTexCoordAttrib(dc, 3 /*vertexTexCoord*/)) return // terrain vertex attribute failed to bind
-            dc.gl.vertexAttribPointer(1 /*pointA*/,0,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(2 /*pointA*/,0,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(4 /*pointA*/,0,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(5 /*pointA*/,0,GL_FLOAT,false,0,0)
+            dc.gl.vertexAttribPointer(1 /*pointA*/,1,GL_FLOAT,false,0,0)
+            dc.gl.vertexAttribPointer(2 /*pointA*/,1,GL_FLOAT,false,0,0)
+            dc.gl.vertexAttribPointer(4 /*pointA*/,1,GL_FLOAT,false,0,0)
+            dc.gl.vertexAttribPointer(5 /*pointA*/,1,GL_FLOAT,false,0,0)
 
             val colorAttachment = dc.scratchFramebuffer.getAttachedTexture(GL_COLOR_ATTACHMENT0)
             if (!colorAttachment.bindTexture(dc)) return  // framebuffer texture failed to bind
