@@ -292,11 +292,11 @@ open class Ellipse @JvmOverloads constructor(
         val vertexBufferPrimary = VertexBufferWithAttribs()
         vertexBufferPrimary.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
         vertexBufferPrimary.addAttribute(0, 4, GL_FLOAT, false, VERTEX_STRIDE * 4, 0)
-        vertexBufferPrimary.addAttribute(1, 0, GL_FLOAT, false, 0, 0)
-        vertexBufferPrimary.addAttribute(2, 0, GL_FLOAT, false,0, 0)
+        vertexBufferPrimary.addAttribute(1, 1, GL_FLOAT, false, 0, 0)
+        vertexBufferPrimary.addAttribute(2, 1, GL_FLOAT, false,0, 0)
         vertexBufferPrimary.addAttribute(3, 2, GL_FLOAT, false, VERTEX_STRIDE * 4,12)
-        vertexBufferPrimary.addAttribute(4, 0, GL_FLOAT, false,0,0)
-        vertexBufferPrimary.addAttribute(5, 0, GL_FLOAT, false, 0,0)
+        vertexBufferPrimary.addAttribute(4, 1, GL_FLOAT, false,0,0)
+        vertexBufferPrimary.addAttribute(5, 1, GL_FLOAT, false, 0,0)
         drawState.addVertexBuffer(vertexBufferPrimary)
 
         // Get the attributes of the element buffer
