@@ -19,7 +19,7 @@ open class StaticPathData(
 {
 }
 
-open class StaticPath @JvmOverloads constructor(
+open class LinesBatch @JvmOverloads constructor(
     pathes: MutableList<StaticPathData> = mutableListOf<StaticPathData>(), attributes: ShapeAttributes = ShapeAttributes()
 ): AbstractShape(attributes) {
 
@@ -136,6 +136,7 @@ open class StaticPath @JvmOverloads constructor(
         }
 
         drawState.isLine = true
+        drawState.isStatic = true
         // Configure the drawable according to the shape's attributes.
         drawState.vertexOrigin.copy(vertexOrigin)
         drawState.enableCullFace = false

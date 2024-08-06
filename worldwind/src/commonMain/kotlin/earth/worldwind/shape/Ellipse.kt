@@ -164,7 +164,7 @@ open class Ellipse @JvmOverloads constructor(
 
     companion object {
         protected const val VERTEX_STRIDE = 5
-        protected const val LINE_VERTEX_STRIDE = 20
+        protected const val LINE_VERTEX_STRIDE = 10
         /**
          * The minimum number of intervals that will be used for geometry generation.
          */
@@ -311,12 +311,12 @@ open class Ellipse @JvmOverloads constructor(
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBufferSecondary = VertexBufferWithAttribs()
         vertexBufferSecondary.vertexBuffer = rc.getBufferObject(lineVertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, lineVertexArray) }
-        vertexBufferSecondary.addAttribute(0, 4, GL_FLOAT, false, 40, 0) // pointA
-        vertexBufferSecondary.addAttribute(1, 4, GL_FLOAT, false, 40, 80) // pointB
-        vertexBufferSecondary.addAttribute(2, 4, GL_FLOAT, false, 40, 160) // pointC
-        vertexBufferSecondary.addAttribute(3, 1, GL_FLOAT, false, 40,96) // texCoord
-        vertexBufferSecondary.addAttribute(4, 4, GL_FLOAT, false, 40,104) // color
-        vertexBufferSecondary.addAttribute(5, 1, GL_FLOAT, false, 40,100) // lineWidth
+        vertexBufferSecondary.addAttribute(0, 4, GL_FLOAT, false, 20, 0) // pointA
+        vertexBufferSecondary.addAttribute(1, 4, GL_FLOAT, false, 20, 40) // pointB
+        vertexBufferSecondary.addAttribute(2, 4, GL_FLOAT, false, 20, 80) // pointC
+        vertexBufferSecondary.addAttribute(3, 1, GL_FLOAT, false, 20,56) // texCoord
+        vertexBufferSecondary.addAttribute(4, 1, GL_FLOAT, false, 0,0) // color
+        vertexBufferSecondary.addAttribute(5, 1, GL_FLOAT, false, 0,0) // lineWidth
         drawStateLines.addVertexBuffer(vertexBufferSecondary)
 
         // Assemble the drawable's OpenGL element buffer object.
@@ -393,13 +393,17 @@ open class Ellipse @JvmOverloads constructor(
         } ?: drawState.texture(null)
 
         // Configure the drawable to display the shape's outline.
+        drawState.color(if (rc.isPickMode) pickColor else activeAttributes.outlineColor)
         drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
+        drawState.lineWidth(activeAttributes.outlineWidth)
         drawState.drawElements(
             GL_TRIANGLE_STRIP, outlineElements.size,
             GL_UNSIGNED_INT, 0 * Int.SIZE_BYTES
         )
         if (activeAttributes.isDrawVerticals && isExtrude && !isSurfaceShape) {
+            drawState.color(if (rc.isPickMode) pickColor else activeAttributes.outlineColor)
             drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
+            drawState.lineWidth(activeAttributes.outlineWidth)
             drawState.texture(null)
             drawState.drawElements(
                 GL_TRIANGLES, verticalElements.size,
@@ -522,30 +526,18 @@ open class Ellipse @JvmOverloads constructor(
         if (lineVertexIndex == 0) texCoord1d = 0.0
         else texCoord1d += point.distanceTo(prevPoint)
         prevPoint.copy(point)
-        val outlineColor = if (rc.isPickMode) pickColor else activeAttributes.outlineColor
-        val outlineWidth = activeAttributes.outlineWidth
         if (isSurfaceShape) {
             lineVertexArray[lineVertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             lineVertexArray[lineVertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             lineVertexArray[lineVertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             lineVertexArray[lineVertexIndex++] = 1.0f
             lineVertexArray[lineVertexIndex++] = texCoord1d.toFloat()
-            lineVertexArray[lineVertexIndex++] = outlineWidth
-            lineVertexArray[lineVertexIndex++] = outlineColor.red
-            lineVertexArray[lineVertexIndex++] = outlineColor.green
-            lineVertexArray[lineVertexIndex++] = outlineColor.blue
-            lineVertexArray[lineVertexIndex++] = outlineColor.alpha
 
             lineVertexArray[lineVertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             lineVertexArray[lineVertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             lineVertexArray[lineVertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             lineVertexArray[lineVertexIndex++] = -1.0f
             lineVertexArray[lineVertexIndex++] = texCoord1d.toFloat()
-            lineVertexArray[lineVertexIndex++] = outlineWidth
-            lineVertexArray[lineVertexIndex++] = outlineColor.red
-            lineVertexArray[lineVertexIndex++] = outlineColor.green
-            lineVertexArray[lineVertexIndex++] = outlineColor.blue
-            lineVertexArray[lineVertexIndex++] = outlineColor.alpha
 
             if (!firstOrLast) {
                 outlineElements.add(vertex)
@@ -557,22 +549,12 @@ open class Ellipse @JvmOverloads constructor(
             lineVertexArray[lineVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             lineVertexArray[lineVertexIndex++] = 1.0f
             lineVertexArray[lineVertexIndex++] = texCoord1d.toFloat()
-            lineVertexArray[lineVertexIndex++] = outlineWidth
-            lineVertexArray[lineVertexIndex++] = outlineColor.red
-            lineVertexArray[lineVertexIndex++] = outlineColor.green
-            lineVertexArray[lineVertexIndex++] = outlineColor.blue
-            lineVertexArray[lineVertexIndex++] = outlineColor.alpha
 
             lineVertexArray[lineVertexIndex++] = (point.x - vertexOrigin.x).toFloat()
             lineVertexArray[lineVertexIndex++] = (point.y - vertexOrigin.y).toFloat()
             lineVertexArray[lineVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             lineVertexArray[lineVertexIndex++] = -1.0f
             lineVertexArray[lineVertexIndex++] = texCoord1d.toFloat()
-            lineVertexArray[lineVertexIndex++] = outlineWidth
-            lineVertexArray[lineVertexIndex++] = outlineColor.red
-            lineVertexArray[lineVertexIndex++] = outlineColor.green
-            lineVertexArray[lineVertexIndex++] = outlineColor.blue
-            lineVertexArray[lineVertexIndex++] = outlineColor.alpha
 
             if (!firstOrLast) {
                 outlineElements.add(vertex)
@@ -587,88 +569,48 @@ open class Ellipse @JvmOverloads constructor(
                 lineVertexArray[verticalVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = 1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (point.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = -1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (point.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = 1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (point.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (point.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = -1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = 1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = -1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = 1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.x - vertexOrigin.x).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.y - vertexOrigin.y).toFloat()
                 lineVertexArray[verticalVertexIndex++] = (vertPoint.z - vertexOrigin.z).toFloat()
                 lineVertexArray[verticalVertexIndex++] = -1f
                 lineVertexArray[verticalVertexIndex++] = 0f
-                lineVertexArray[verticalVertexIndex++] = outlineWidth
-                lineVertexArray[verticalVertexIndex++] = outlineColor.red
-                lineVertexArray[verticalVertexIndex++] = outlineColor.green
-                lineVertexArray[verticalVertexIndex++] = outlineColor.blue
-                lineVertexArray[verticalVertexIndex++] = outlineColor.alpha
 
                 verticalElements.add(index)
                 verticalElements.add(index + 1)

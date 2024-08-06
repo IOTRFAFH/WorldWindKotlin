@@ -154,6 +154,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                     continue
 
                 program.enableLinesMode(shape.drawState.isLine)
+                program.enableVertexColorAndWidth(shape.drawState.isStatic)
                 program.loadScreen(colorAttachment.width.toFloat(), colorAttachment.height.toFloat())
 
                 // Transform local shape coordinates to texture fragments appropriate for the terrain sector.
@@ -169,16 +170,15 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                 for (primIdx in 0 until shape.drawState.primCount) {
                     val prim = shape.drawState.prims[primIdx]
                     program.loadOpacity(prim.opacity)
+                    program.loadColor(prim.color)
+                    program.loadLineWidth(prim.lineWidth)
                     if (prim.texture?.bindTexture(dc) == true) {
                         program.loadTexCoordMatrix(prim.texCoordMatrix)
                         program.enableTexture(true)
                     } else {
                         program.enableTexture(false)
                     }
-                    if (!shape.drawState.isLine) {
-                        program.loadColor(prim.color)
-                        dc.gl.lineWidth(prim.lineWidth)
-                    }
+                    dc.gl.lineWidth(prim.lineWidth)
                     dc.gl.drawElements(prim.mode, prim.count, prim.type, prim.offset)
                 }
 
@@ -212,6 +212,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             // TODO consolidate pickMode and enableTexture into a single textureMode
             // TODO it's confusing that pickMode must be disabled during surface shape render-to-texture
             program.enableLinesMode(false)
+            program.enableVertexColorAndWidth(false)
             program.enablePickMode(false)
             program.enableTexture(true)
             program.loadTexCoordMatrix(identityMatrix3)

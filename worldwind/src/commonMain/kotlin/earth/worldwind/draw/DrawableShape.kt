@@ -92,24 +92,23 @@ open class DrawableShape protected constructor(): Drawable {
         // Make multi-texture unit 0 active.
         dc.activeTextureUnit(GL_TEXTURE0)
 
-
         program.enableLinesMode(drawState.isLine)
+        program.enableVertexColorAndWidth(drawState.isStatic)
         program.loadScreen(dc.viewport.width.toFloat(), dc.viewport.height.toFloat())
 
         // Draw the specified primitives.
         for (idx in 0 until drawState.primCount) {
             val prim = drawState.prims[idx]
             program.loadOpacity(prim.opacity)
+            program.loadColor(prim.color)
+            program.loadLineWidth(prim.lineWidth)
             if (prim.texture?.bindTexture(dc) == true) {
                 program.loadTexCoordMatrix(prim.texCoordMatrix)
                 program.enableTexture(true)
             } else {
                 program.enableTexture(false)
             }
-            if (!drawState.isLine) {
-                program.loadColor(prim.color)
-                dc.gl.lineWidth(prim.lineWidth)
-            }
+            dc.gl.lineWidth(prim.lineWidth)
             dc.gl.drawElements(prim.mode, prim.count, prim.type, prim.offset)
         }
 

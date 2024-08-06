@@ -451,96 +451,54 @@ open class Placemark @JvmOverloads constructor(
         // Use the basic GLSL program to draw the placemark's leader.
         drawable.program = rc.getShaderProgram { TriangleShaderProgram() }
 
-        val color = if (rc.isPickMode) pickColor else activeAttributes.leaderAttributes.outlineColor
-        val lineWidth = activeAttributes.leaderAttributes.outlineWidth
         var vertexIndex = 0
         drawable.vertexPoints[vertexIndex++] = (placePoint.x - groundPoint.x).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.y - groundPoint.y).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.z - groundPoint.z).toFloat()
         drawable.vertexPoints[vertexIndex++] = 1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = (placePoint.x - groundPoint.x).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.y - groundPoint.y).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.z - groundPoint.z).toFloat()
         drawable.vertexPoints[vertexIndex++] = -1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = (placePoint.x - groundPoint.x).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.y - groundPoint.y).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.z - groundPoint.z).toFloat()
         drawable.vertexPoints[vertexIndex++] = 1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = (placePoint.x - groundPoint.x).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.y - groundPoint.y).toFloat()
         drawable.vertexPoints[vertexIndex++] = (placePoint.z - groundPoint.z).toFloat()
         drawable.vertexPoints[vertexIndex++] = -1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = -1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 1f
         drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex++] = color.alpha
 
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = 0.0f
         drawable.vertexPoints[vertexIndex++] = -1f
-        drawable.vertexPoints[vertexIndex++] = 0f
-        drawable.vertexPoints[vertexIndex++] = lineWidth
-        drawable.vertexPoints[vertexIndex++] = color.red
-        drawable.vertexPoints[vertexIndex++] = color.green
-        drawable.vertexPoints[vertexIndex++] = color.blue
-        drawable.vertexPoints[vertexIndex] = color.alpha
+        drawable.vertexPoints[vertexIndex] = 0f
 
         // Compute the drawable's modelview-projection matrix, relative to the placemark's ground point.
         drawable.mvpMatrix.copy(rc.modelviewProjection)
@@ -548,7 +506,9 @@ open class Placemark @JvmOverloads constructor(
 
         // Configure the drawable according to the placemark's active leader attributes. Use a color appropriate for the
         // pick mode. When picking use a unique color associated with the picked object ID.
+        drawable.color.copy(if (rc.isPickMode) pickColor else activeAttributes.leaderAttributes.outlineColor)
         drawable.opacity = if (rc.isPickMode) 1f else rc.currentLayer.opacity
+        drawable.lineWidth = activeAttributes.leaderAttributes.outlineWidth
         drawable.enableDepthTest = activeAttributes.leaderAttributes.isDepthTest
     }
 

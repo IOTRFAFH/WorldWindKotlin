@@ -78,15 +78,15 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
          * are added to the RenderableLayer on the UI thread via onProgressUpdate.
          */
         override fun doInBackground(vararg params: Void): Void? {
-            val staticPath = StaticPath().apply {
+            val linesBatch = LinesBatch().apply {
                 altitudeMode = AltitudeMode.CLAMP_TO_GROUND
                 pathType = PathType.LINEAR
                 isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
                 displayName = "Batched lines"
             }
-            loadCountriesFile(staticPath)
-            loadHighways(staticPath)
-            publishProgress(staticPath)
+            loadCountriesFile(linesBatch)
+            loadHighways(linesBatch)
+            publishProgress(linesBatch)
             loadPlaceNames()
             return null
         }
@@ -167,7 +167,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
         /**
          * Creates Path objects from the VMAP0 World Highways data. Called by doInBackground().
          */
-        private fun loadHighways(staticPath : StaticPath) {
+        private fun loadHighways(linesBatch : LinesBatch) {
             // Define the normal shape attributes
 //            val attrs = ShapeAttributes()
 //            attrs.outlineColor.set(1.0f, 1.0f, 0.0f, 1.0f)
@@ -210,7 +210,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
 
-                        staticPath.addPath(StaticPathData(positions, Color(1.0f, 1.0f, 0.0f, 1.0f), 3f))
+                        linesBatch.addPath(StaticPathData(positions, Color(1.0f, 1.0f, 0.0f, 1.0f), 3f))
 //                        val path = Path(positions, attrs)
 //                        path.highlightAttributes = highlightAttrs
 //                        path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
@@ -231,7 +231,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
         /**
          * Creates Polygon objects from the e VMAP0 World Political Areas data. Called by doInBackground().
          */
-        private fun loadCountriesFile(staticPath : StaticPath) {
+        private fun loadCountriesFile(linesBatch : LinesBatch) {
             // Define the normal shape attributes
             val commonAttrs = ShapeAttributes()
             commonAttrs.interiorColor.set(1.0f, 1.0f, 0.0f, 0.5f)
@@ -301,7 +301,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                                 positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                             }
                             polygon.addBoundary(positions)
-                            staticPath.addPath(StaticPathData(positions, polygon.attributes.outlineColor, polygon.attributes.outlineWidth))
+                            linesBatch.addPath(StaticPathData(positions, polygon.attributes.outlineColor, polygon.attributes.outlineWidth))
 
                             // Locate the next polygon in the feature
                             polyStart = feature.indexOf("(", polyEnd)

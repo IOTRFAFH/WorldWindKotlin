@@ -37,6 +37,7 @@ open class DrawShapeState internal constructor() {
     var enableDepthWrite = true
     var depthOffset = 0.0
     var isLine = false
+    var isStatic = false
     protected val color = Color()
     protected var opacity = 1.0f
     protected var lineWidth = 1f
@@ -55,6 +56,7 @@ open class DrawShapeState internal constructor() {
         enableCullFace = true
         enableDepthTest = true
         isLine = false
+        isStatic = false
         depthOffset = 0.0
         color.set(1f, 1f, 1f, 1f)
         opacity = 1.0f

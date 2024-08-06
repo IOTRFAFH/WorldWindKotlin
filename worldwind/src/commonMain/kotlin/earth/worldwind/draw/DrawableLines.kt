@@ -1,6 +1,7 @@
 package earth.worldwind.draw
 
 import earth.worldwind.geom.Matrix4
+import earth.worldwind.render.Color
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.util.Pool
 import earth.worldwind.util.kgl.GL_DEPTH_TEST
@@ -13,9 +14,11 @@ open class DrawableLines protected constructor(): Drawable {
     /**
      * Leader line vertex array. Initially sized to store two xyz points.
      */
-    var vertexPoints = FloatArray(80)
+    var vertexPoints = FloatArray(40)
     val mvpMatrix = Matrix4()
+    val color = Color()
     var opacity = 1.0f
+    var lineWidth = 1f
     var enableDepthTest = true
     var program: TriangleShaderProgram? = null
     private var pool: Pool<DrawableLines>? = null
@@ -50,8 +53,12 @@ open class DrawableLines protected constructor(): Drawable {
         // Disable texturing.
         program.enableTexture(false)
 
-        // Ensure program is in triangles mode
+        // Ensure program is in lines mode
         program.enableLinesMode(true)
+        program.enableVertexColorAndWidth(false)
+
+        // Use the leader's color.
+        program.loadColor(color)
 
         // Use the leader's opacity.
         program.loadOpacity(opacity)
@@ -61,6 +68,9 @@ open class DrawableLines protected constructor(): Drawable {
 
         // Use render target dimensions
         program.loadScreen(dc.viewport.width.toFloat(), dc.viewport.height.toFloat())
+
+        // Use the leader's line width in screen pixels.
+        program.loadLineWidth(lineWidth)
 
         // Disable depth testing if requested.
         if (!enableDepthTest) dc.gl.disable(GL_DEPTH_TEST)
@@ -73,12 +83,12 @@ open class DrawableLines protected constructor(): Drawable {
         dc.gl.enableVertexAttribArray(5 /*value*/)
 
         // Use the shape's vertex point attribute and vertex texture coordinate attribute.
-        dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 40, offset + 0)
-        dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 40, offset + 80)
-        dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 40, offset + 160)
-        dc.gl.vertexAttribPointer(3 /*texCoord*/, 1, GL_FLOAT, false, 40, offset + 96)
-        dc.gl.vertexAttribPointer(4 /*color*/, 4, GL_FLOAT, false, 40, offset + 104)
-        dc.gl.vertexAttribPointer(5 /*lineWidth*/, 1, GL_FLOAT, false, 40, offset + 100)
+        dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 20, offset + 0)
+        dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 20, offset + 40)
+        dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 20, offset + 80)
+        dc.gl.vertexAttribPointer(3 /*texCoord*/, 1, GL_FLOAT, false, 0, offset + 0)
+        dc.gl.vertexAttribPointer(4 /*color*/, 1, GL_FLOAT, false, 0, offset + 0)
+        dc.gl.vertexAttribPointer(5 /*lineWidth*/, 1, GL_FLOAT, false, 0, offset + 0)
 
         // Draw the leader line.
         dc.gl.drawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
