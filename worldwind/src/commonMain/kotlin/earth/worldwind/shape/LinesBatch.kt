@@ -4,7 +4,6 @@ import earth.worldwind.draw.DrawShapeState
 import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
 import earth.worldwind.draw.DrawableSurfaceShape
-import earth.worldwind.draw.VertexBufferWithAttribs
 import earth.worldwind.geom.*
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
@@ -97,23 +96,17 @@ open class LinesBatch @JvmOverloads constructor(
         drawState.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
-        val vertexBuffer = VertexBufferWithAttribs()
-        vertexBuffer.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        vertexBuffer.addAttribute(0, 4, GL_FLOAT, false, 16, 0) // pointA
-        vertexBuffer.addAttribute(1, 4, GL_FLOAT, false, 16, 32) // pointB
-        vertexBuffer.addAttribute(2, 4, GL_FLOAT, false, 16, 64) // pointC
-        vertexBuffer.addAttribute(3, 1, GL_FLOAT, false, 0,0) // texCoord
-        drawState.addVertexBuffer(vertexBuffer)
+        val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
+        drawState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 16, 0) // pointA
+        drawState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 16, 32) // pointB
+        drawState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 16, 64) // pointC
+        drawState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 0,0) // texCoord
 
-        val colorBuffer = VertexBufferWithAttribs()
-        colorBuffer.vertexBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
-        colorBuffer.addAttribute(4, 4, GL_UNSIGNED_BYTE, true, 4,0) // color
-        drawState.addVertexBuffer(colorBuffer)
+        val colorBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
+        drawState.addAttribute(4, colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4,0) // color
 
-        val widthBuffer = VertexBufferWithAttribs()
-        widthBuffer.vertexBuffer = rc.getBufferObject(widthBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, widthArray) }
-        widthBuffer.addAttribute(5, 1, GL_FLOAT, false, 4,0) // lineWidth
-        drawState.addVertexBuffer(widthBuffer)
+        val widthBuffer = rc.getBufferObject(widthBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, widthArray) }
+        drawState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 4,0) // lineWidth
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {

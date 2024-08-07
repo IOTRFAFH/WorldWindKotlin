@@ -31,37 +31,8 @@ open class DrawableShape protected constructor(): Drawable {
         // TODO shape batching
         val program = drawState.program ?: return // program unspecified
         if (!program.useProgram(dc)) return // program failed to build
+        if (!drawState.vertexState.bind(dc)) return
         if (drawState.elementBuffer?.bindBuffer(dc) != true) return  // element buffer unspecified or failed to bind
-
-        // Use the shape's vertex point attribute and vertex texture coordinate attribute.
-        dc.gl.enableVertexAttribArray(1 /*vertexTexCoord*/)
-        dc.gl.enableVertexAttribArray(2 /*vertexTexCoord*/)
-        dc.gl.enableVertexAttribArray(3 /*vertexTexCoord*/)
-        dc.gl.enableVertexAttribArray(4 /*vertexTexCoord*/)
-        dc.gl.enableVertexAttribArray(5 /*lineWidth*/)
-
-        var bufferBound = false
-        for (vertexBuffer in drawState.vertexBuffers) {
-            bufferBound = vertexBuffer.vertexBuffer?.bindBuffer(dc) == true
-            if (bufferBound) {
-                for (vertexAttribute in vertexBuffer.attributes)
-                    dc.gl.vertexAttribPointer(
-                        vertexAttribute.index /*pointA*/,
-                        vertexAttribute.size,
-                        vertexAttribute.type,
-                        vertexAttribute.normalized,
-                        vertexAttribute.stride,
-                        vertexAttribute.offset
-                    )
-            }
-            else
-            {
-                break
-            }
-        }
-
-        if(!bufferBound)
-            return
 
         // Use the draw context's pick mode.
         program.enablePickMode(dc.isPickMode)
@@ -118,10 +89,6 @@ open class DrawableShape protected constructor(): Drawable {
         if (!drawState.enableDepthWrite) dc.gl.depthMask(true)
         dc.gl.lineWidth(1f)
         dc.gl.enable(GL_CULL_FACE)
-        dc.gl.disableVertexAttribArray(1 /*vertexTexCoord*/)
-        dc.gl.disableVertexAttribArray(2 /*vertexTexCoord*/)
-        dc.gl.disableVertexAttribArray(3 /*vertexTexCoord*/)
-        dc.gl.disableVertexAttribArray(4 /*vertexTexCoord*/)
-        dc.gl.disableVertexAttribArray(5 /*vertexTexCoord*/)
+        drawState.vertexState.unbind(dc)
     }
 }

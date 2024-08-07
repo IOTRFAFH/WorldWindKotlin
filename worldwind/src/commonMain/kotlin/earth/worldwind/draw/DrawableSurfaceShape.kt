@@ -42,13 +42,6 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
         // Make multi-texture unit 0 active.
         dc.activeTextureUnit(GL_TEXTURE0)
 
-        // Set up to use vertex tex coord attributes.
-        dc.gl.enableVertexAttribArray(1 /*pointB*/)
-        dc.gl.enableVertexAttribArray(2 /*pointC*/)
-        dc.gl.enableVertexAttribArray(3 /*vertexTexCoord*/)
-        dc.gl.enableVertexAttribArray(4 /*color*/)
-        dc.gl.enableVertexAttribArray(5 /*lineWidth*/)
-
         // Accumulate shapes in the draw context's scratch list.
         // TODO accumulate in a geospatial quadtree
         val scratchList = dc.scratchList
@@ -77,12 +70,6 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
         } finally {
             // Clear the accumulated shapes.
             scratchList.clear()
-            // Restore the default WorldWind OpenGL state.
-            dc.gl.disableVertexAttribArray(1 /*pointB*/)
-            dc.gl.disableVertexAttribArray(2 /*pointC*/)
-            dc.gl.disableVertexAttribArray(3 /*vertexTexCoord*/)
-            dc.gl.disableVertexAttribArray(4 /*color*/)
-            dc.gl.disableVertexAttribArray(5 /*lineWidth*/)
         }
     }
 
@@ -128,30 +115,8 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                 // Get the shape.
                 val shape = element as DrawableSurfaceShape
                 if (shape.offset != terrain.offset || !shape.sector.intersectsOrNextTo(terrainSector)) continue
+                if (!shape.drawState.vertexState.bind(dc)) continue
                 if (shape.drawState.elementBuffer?.bindBuffer(dc) != true) continue  // element buffer unspecified or failed to bind
-
-                var bufferBound = false
-                for (vertexBuffer in shape.drawState.vertexBuffers) {
-                    bufferBound = vertexBuffer.vertexBuffer?.bindBuffer(dc) == true
-                    if (bufferBound) {
-                        for (vertexAttribute in vertexBuffer.attributes)
-                            dc.gl.vertexAttribPointer(
-                                vertexAttribute.index /*pointA*/,
-                                vertexAttribute.size,
-                                vertexAttribute.type,
-                                vertexAttribute.normalized,
-                                vertexAttribute.stride,
-                                vertexAttribute.offset
-                            )
-                    }
-                    else
-                    {
-                        break
-                    }
-                }
-
-                if(!bufferBound)
-                    continue
 
                 program.enableLinesMode(shape.drawState.isLine)
                 program.enableVertexColorAndWidth(shape.drawState.isStatic)
@@ -184,6 +149,8 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
 
                 // Accumulate the number of shapes drawn into the texture.
                 shapeCount++
+
+                shape.drawState.vertexState.unbind(dc)
             }
         } finally {
             // Restore the default WorldWind OpenGL state.
@@ -198,12 +165,9 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
     protected open fun drawTextureToTerrain(dc: DrawContext, terrain: DrawableTerrain) {
         val program = drawState.program ?: return
         try {
+            dc.gl.enableVertexAttribArray(3 /*vertexTexCoord*/)
             if (!terrain.useVertexPointAttrib(dc, 0 /*vertexPoint*/)) return // terrain vertex attribute failed to bind
             if (!terrain.useVertexTexCoordAttrib(dc, 3 /*vertexTexCoord*/)) return // terrain vertex attribute failed to bind
-            dc.gl.vertexAttribPointer(1 /*pointA*/,1,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(2 /*pointA*/,1,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(4 /*pointA*/,1,GL_FLOAT,false,0,0)
-            dc.gl.vertexAttribPointer(5 /*pointA*/,1,GL_FLOAT,false,0,0)
 
             val colorAttachment = dc.scratchFramebuffer.getAttachedTexture(GL_COLOR_ATTACHMENT0)
             if (!colorAttachment.bindTexture(dc)) return  // framebuffer texture failed to bind
@@ -228,6 +192,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             // Draw the terrain as triangles.
             terrain.drawTriangles(dc)
         } finally {
+            dc.gl.disableVertexAttribArray(3 /*vertexTexCoord*/)
             // Unbind color attachment texture to avoid feedback loop
             dc.bindTexture(KglTexture.NONE)
         }

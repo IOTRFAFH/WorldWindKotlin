@@ -8,18 +8,66 @@ import earth.worldwind.render.buffer.AbstractBufferObject
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.util.kgl.GL_FLOAT
 
-open class VertexBufferWithAttribs
-{
-    var vertexBuffer: AbstractBufferObject? = null
-    var attributes = mutableListOf<VertexAttrib>()
-
-    fun addAttribute(index: Int, size : Int, type : Int , normalized : Boolean, stride: Int, offset : Int)
-    {
-        attributes.add(VertexAttrib(index, size,type,normalized, stride, offset))
+open class VertexState {
+    internal class VertexAttrib constructor(
+        var index: Int = 0,
+        var vertexBuffer: AbstractBufferObject? = null,
+        var size: Int = 0,
+        var type: Int = GL_FLOAT,
+        var normalized: Boolean = false,
+        var stride: Int = 0,
+        var offset: Int = 0
+    ) {
     }
 
-    open class VertexAttrib constructor(
-        var index : Int = 0, var size: Int = 0, var type : Int = GL_FLOAT, var normalized : Boolean = false, var stride : Int = 0, var offset: Int = 0) {
+    private var attributes = mutableListOf<VertexAttrib>()
+
+    fun reset() {
+        attributes.clear()
+    }
+
+    fun addAttribute(
+        index: Int,
+        vertexBuffer: AbstractBufferObject,
+        size: Int,
+        type: Int,
+        normalized: Boolean,
+        stride: Int,
+        offset: Int
+    ) {
+        attributes.add(VertexAttrib(index, vertexBuffer, size, type, normalized, stride, offset))
+    }
+
+    fun bind(dc: DrawContext): Boolean {
+        var bindSuccessful = true
+        for (vertexAttrib in attributes) {
+            if (vertexAttrib.vertexBuffer != null) {
+                bindSuccessful = vertexAttrib.vertexBuffer!!.bindBuffer(dc)
+                if (bindSuccessful) {
+                    dc.gl.enableVertexAttribArray(vertexAttrib.index)
+                    dc.gl.vertexAttribPointer(
+                        vertexAttrib.index,
+                        vertexAttrib.size,
+                        vertexAttrib.type,
+                        vertexAttrib.normalized,
+                        vertexAttrib.stride,
+                        vertexAttrib.offset
+                    )
+                } else {
+                    break
+                }
+            }
+        }
+        return bindSuccessful
+    }
+
+    fun unbind(dc: DrawContext) {
+        for (vertexAttrib in attributes) {
+            if (vertexAttrib.vertexBuffer != null) {
+                if (vertexAttrib.index == 0) continue // skip 0 for now as it's always enabled and disabling it here will cause lots of headache
+                dc.gl.disableVertexAttribArray(vertexAttrib.index)
+            }
+        }
     }
 }
 
@@ -43,13 +91,13 @@ open class DrawShapeState internal constructor() {
     protected var lineWidth = 1f
     protected var texture: Texture? = null
     protected val texCoordMatrix = Matrix3()
-    internal val vertexBuffers = mutableListOf<VertexBufferWithAttribs>()
+    internal val vertexState = VertexState()
     internal var primCount = 0
     internal val prims = Array(MAX_DRAW_ELEMENTS) { DrawElements() }
 
     open fun reset() {
         program = null
-        vertexBuffers.clear()
+        vertexState.reset()
         elementBuffer = null
         vertexOrigin.set(0.0, 0.0, 0.0)
         vertexStride = 0
@@ -77,8 +125,8 @@ open class DrawShapeState internal constructor() {
 
     fun texCoordMatrix(matrix: Matrix3) = apply { texCoordMatrix.copy(matrix) }
 
-    fun addVertexBuffer(vertexBuffer : VertexBufferWithAttribs) = apply {
-        vertexBuffers.add(vertexBuffer)
+    fun addAttribute (index: Int, vertexBuffer : AbstractBufferObject, size : Int, type : Int , normalized : Boolean, stride: Int, offset : Int) {
+        vertexState.addAttribute(index, vertexBuffer, size, type, normalized, stride, offset)
     }
 
     open fun drawElements(mode: Int, count: Int, type: Int, offset: Int) {

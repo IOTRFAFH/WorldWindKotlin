@@ -4,7 +4,6 @@ import earth.worldwind.draw.DrawShapeState
 import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
 import earth.worldwind.draw.DrawableSurfaceShape
-import earth.worldwind.draw.VertexBufferWithAttribs
 import earth.worldwind.geom.*
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
@@ -95,16 +94,11 @@ open class Path @JvmOverloads constructor(
         drawState.program = rc.getShaderProgram { TriangleShaderProgram() }
 
         // Assemble the drawable's OpenGL vertex buffer object.
-        val vertexBufferSecondary = VertexBufferWithAttribs()
-        vertexBufferSecondary.vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        vertexBufferSecondary.addAttribute(0, 4, GL_FLOAT, false, 20, 0) // pointA
-        vertexBufferSecondary.addAttribute(1, 4, GL_FLOAT, false, 20, 40) // pointB
-        vertexBufferSecondary.addAttribute(2, 4, GL_FLOAT, false, 20, 80) // pointC
-        vertexBufferSecondary.addAttribute(3, 1, GL_FLOAT, false, 20,56) // texCoord
-        vertexBufferSecondary.addAttribute(4, 4, GL_FLOAT, false, 0,0) // color
-        vertexBufferSecondary.addAttribute(5, 1, GL_FLOAT, false, 0,0) // lineWidth
-
-        drawState.addVertexBuffer(vertexBufferSecondary)
+        val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
+        drawState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, 20, 0)
+        drawState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 20, 40)
+        drawState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 20, 80)
+        drawState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 20, 56)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {
