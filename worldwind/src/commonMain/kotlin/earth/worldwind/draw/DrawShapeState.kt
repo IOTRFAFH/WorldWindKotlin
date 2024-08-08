@@ -10,13 +10,13 @@ import earth.worldwind.util.kgl.GL_FLOAT
 
 open class VertexState {
     internal class VertexAttrib constructor(
-        var index: Int = 0,
-        var vertexBuffer: AbstractBufferObject? = null,
-        var size: Int = 0,
-        var type: Int = GL_FLOAT,
-        var normalized: Boolean = false,
-        var stride: Int = 0,
-        var offset: Int = 0
+        val index: Int = 0,
+        val vertexBuffer: AbstractBufferObject? = null,
+        val size: Int = 0,
+        val type: Int = GL_FLOAT,
+        val normalized: Boolean = false,
+        val stride: Int = 0,
+        val offset: Int = 0
     ) {
     }
 
@@ -42,7 +42,7 @@ open class VertexState {
         var bindSuccessful = true
         for (vertexAttrib in attributes) {
             if (vertexAttrib.vertexBuffer != null) {
-                bindSuccessful = vertexAttrib.vertexBuffer!!.bindBuffer(dc)
+                bindSuccessful = vertexAttrib.vertexBuffer.bindBuffer(dc)
                 if (bindSuccessful) {
                     dc.gl.enableVertexAttribArray(vertexAttrib.index)
                     dc.gl.vertexAttribPointer(
@@ -86,7 +86,7 @@ open class DrawShapeState internal constructor() {
     var depthOffset = 0.0
     var isLine = false
     var isStatic = false
-    var vertexState = VertexState()
+    val vertexState = VertexState()
     protected val color = Color()
     protected var opacity = 1.0f
     protected var lineWidth = 1f
