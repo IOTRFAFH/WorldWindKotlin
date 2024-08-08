@@ -95,10 +95,10 @@ open class Path @JvmOverloads constructor(
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        drawState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, 20, 0)
-        drawState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 20, 40)
-        drawState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 20, 80)
-        drawState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 20, 56)
+        drawState.vertexState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, 20, 0)
+        drawState.vertexState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 20, 40)
+        drawState.vertexState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 20, 80)
+        drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 20, 56)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {

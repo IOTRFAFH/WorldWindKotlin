@@ -76,19 +76,13 @@ open class DrawableLines protected constructor(): Drawable {
         if (!enableDepthTest) dc.gl.disable(GL_DEPTH_TEST)
 
         // Use the leader line as the vertex point attribute.
-        dc.gl.enableVertexAttribArray(1 /*value*/)
-        dc.gl.enableVertexAttribArray(2 /*value*/)
-        dc.gl.enableVertexAttribArray(3 /*value*/)
-        dc.gl.enableVertexAttribArray(4 /*value*/)
-        dc.gl.enableVertexAttribArray(5 /*value*/)
+        dc.gl.enableVertexAttribArray(1 /*pointB*/)
+        dc.gl.enableVertexAttribArray(2 /*pointC*/)
 
         // Use the shape's vertex point attribute and vertex texture coordinate attribute.
         dc.gl.vertexAttribPointer(0 /*pointA*/, 4, GL_FLOAT, false, 20, offset + 0)
         dc.gl.vertexAttribPointer(1 /*pointB*/, 4, GL_FLOAT, false, 20, offset + 40)
         dc.gl.vertexAttribPointer(2 /*pointC*/, 4, GL_FLOAT, false, 20, offset + 80)
-        dc.gl.vertexAttribPointer(3 /*texCoord*/, 1, GL_FLOAT, false, 0, offset + 0)
-        dc.gl.vertexAttribPointer(4 /*color*/, 1, GL_FLOAT, false, 0, offset + 0)
-        dc.gl.vertexAttribPointer(5 /*lineWidth*/, 1, GL_FLOAT, false, 0, offset + 0)
 
         // Draw the leader line.
         dc.gl.drawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
@@ -96,10 +90,7 @@ open class DrawableLines protected constructor(): Drawable {
         // Restore the default WorldWind OpenGL state.
         if (!enableDepthTest) dc.gl.enable(GL_DEPTH_TEST)
 
-        dc.gl.disableVertexAttribArray(1 /*value*/)
-        dc.gl.disableVertexAttribArray(2 /*value*/)
-        dc.gl.disableVertexAttribArray(3 /*value*/)
-        dc.gl.disableVertexAttribArray(4 /*value*/)
-        dc.gl.disableVertexAttribArray(5 /*value*/)
+        dc.gl.disableVertexAttribArray(1 /*pointB*/)
+        dc.gl.disableVertexAttribArray(2 /*pointC*/)
     }
 }

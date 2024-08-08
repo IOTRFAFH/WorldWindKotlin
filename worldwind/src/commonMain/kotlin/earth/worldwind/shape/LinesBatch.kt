@@ -97,16 +97,16 @@ open class LinesBatch @JvmOverloads constructor(
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        drawState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 16, 0) // pointA
-        drawState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 16, 32) // pointB
-        drawState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 16, 64) // pointC
-        drawState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 0,0) // texCoord
+        drawState.vertexState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 16, 0) // pointA
+        drawState.vertexState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 16, 32) // pointB
+        drawState.vertexState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 16, 64) // pointC
+        drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 0,0) // texCoord
 
         val colorBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
-        drawState.addAttribute(4, colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4,0) // color
+        drawState.vertexState.addAttribute(4, colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4,0) // color
 
         val widthBuffer = rc.getBufferObject(widthBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, widthArray) }
-        drawState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 4,0) // lineWidth
+        drawState.vertexState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 4,0) // lineWidth
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {

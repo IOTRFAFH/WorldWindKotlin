@@ -180,8 +180,8 @@ open class Polygon @JvmOverloads constructor(
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        drawState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, VERTEX_STRIDE * 4, 0)
-        drawState.addAttribute(3, vertexBuffer, 2, GL_FLOAT, false, VERTEX_STRIDE * 4,12)
+        drawState.vertexState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, VERTEX_STRIDE * 4, 0)
+        drawState.vertexState.addAttribute(3, vertexBuffer, 2, GL_FLOAT, false, VERTEX_STRIDE * 4,12)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {
@@ -200,10 +200,10 @@ open class Polygon @JvmOverloads constructor(
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val lineVertexBuffer = rc.getBufferObject(vertexLinesBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, lineVertexArray) }
-        drawStateLines.addAttribute(0, lineVertexBuffer, 4, GL_FLOAT, false, 20, 0)
-        drawStateLines.addAttribute(1, lineVertexBuffer, 4, GL_FLOAT, false, 20, 40)
-        drawStateLines.addAttribute(2, lineVertexBuffer, 4, GL_FLOAT, false, 20, 80)
-        drawStateLines.addAttribute(3, lineVertexBuffer, 1, GL_FLOAT, false, 20, 56)
+        drawStateLines.vertexState.addAttribute(0, lineVertexBuffer, 4, GL_FLOAT, false, 20, 0)
+        drawStateLines.vertexState.addAttribute(1, lineVertexBuffer, 4, GL_FLOAT, false, 20, 40)
+        drawStateLines.vertexState.addAttribute(2, lineVertexBuffer, 4, GL_FLOAT, false, 20, 80)
+        drawStateLines.vertexState.addAttribute(3, lineVertexBuffer, 1, GL_FLOAT, false, 20, 56)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawStateLines.elementBuffer = rc.getBufferObject(elementLinesBufferKey) {

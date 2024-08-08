@@ -86,12 +86,12 @@ open class DrawShapeState internal constructor() {
     var depthOffset = 0.0
     var isLine = false
     var isStatic = false
+    var vertexState = VertexState()
     protected val color = Color()
     protected var opacity = 1.0f
     protected var lineWidth = 1f
     protected var texture: Texture? = null
     protected val texCoordMatrix = Matrix3()
-    internal val vertexState = VertexState()
     internal var primCount = 0
     internal val prims = Array(MAX_DRAW_ELEMENTS) { DrawElements() }
 
@@ -124,10 +124,6 @@ open class DrawShapeState internal constructor() {
     fun texture(texture: Texture?) = apply { this.texture = texture }
 
     fun texCoordMatrix(matrix: Matrix3) = apply { texCoordMatrix.copy(matrix) }
-
-    fun addAttribute (index: Int, vertexBuffer : AbstractBufferObject, size : Int, type : Int , normalized : Boolean, stride: Int, offset : Int) {
-        vertexState.addAttribute(index, vertexBuffer, size, type, normalized, stride, offset)
-    }
 
     open fun drawElements(mode: Int, count: Int, type: Int, offset: Int) {
         val prim = prims[primCount++]

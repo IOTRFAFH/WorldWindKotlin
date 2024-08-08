@@ -120,7 +120,10 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
 
                 program.enableLinesMode(shape.drawState.isLine)
                 program.enableVertexColorAndWidth(shape.drawState.isStatic)
-                program.loadScreen(colorAttachment.width.toFloat(), colorAttachment.height.toFloat())
+                if (shape.drawState.isLine) program.loadScreen(
+                    colorAttachment.width.toFloat(),
+                    colorAttachment.height.toFloat()
+                )
 
                 // Transform local shape coordinates to texture fragments appropriate for the terrain sector.
                 mvpMatrix.copy(textureMvpMatrix)
@@ -135,15 +138,19 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                 for (primIdx in 0 until shape.drawState.primCount) {
                     val prim = shape.drawState.prims[primIdx]
                     program.loadOpacity(prim.opacity)
-                    program.loadColor(prim.color)
-                    program.loadLineWidth(prim.lineWidth)
+                    if (!drawState.isStatic) {
+                        program.loadColor(prim.color)
+                        program.loadLineWidth(prim.lineWidth)
+                    }
                     if (prim.texture?.bindTexture(dc) == true) {
                         program.loadTexCoordMatrix(prim.texCoordMatrix)
                         program.enableTexture(true)
                     } else {
                         program.enableTexture(false)
                     }
-                    dc.gl.lineWidth(prim.lineWidth)
+                    if (prim.mode == GL_LINES || prim.mode == GL_LINE_STRIP || prim.mode == GL_LINE_LOOP) dc.gl.lineWidth(
+                        prim.lineWidth
+                    )
                     dc.gl.drawElements(prim.mode, prim.count, prim.type, prim.offset)
                 }
 

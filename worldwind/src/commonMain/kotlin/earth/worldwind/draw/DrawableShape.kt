@@ -4,6 +4,9 @@ import earth.worldwind.geom.Matrix4
 import earth.worldwind.util.Pool
 import earth.worldwind.util.kgl.GL_CULL_FACE
 import earth.worldwind.util.kgl.GL_DEPTH_TEST
+import earth.worldwind.util.kgl.GL_LINES
+import earth.worldwind.util.kgl.GL_LINE_LOOP
+import earth.worldwind.util.kgl.GL_LINE_STRIP
 import earth.worldwind.util.kgl.GL_TEXTURE0
 import kotlin.jvm.JvmStatic
 
@@ -65,21 +68,28 @@ open class DrawableShape protected constructor(): Drawable {
 
         program.enableLinesMode(drawState.isLine)
         program.enableVertexColorAndWidth(drawState.isStatic)
-        program.loadScreen(dc.viewport.width.toFloat(), dc.viewport.height.toFloat())
+        if (drawState.isLine) program.loadScreen(
+            dc.viewport.width.toFloat(),
+            dc.viewport.height.toFloat()
+        )
 
         // Draw the specified primitives.
         for (idx in 0 until drawState.primCount) {
             val prim = drawState.prims[idx]
             program.loadOpacity(prim.opacity)
-            program.loadColor(prim.color)
-            program.loadLineWidth(prim.lineWidth)
+            if (!drawState.isStatic) {
+                program.loadColor(prim.color)
+                program.loadLineWidth(prim.lineWidth)
+            }
             if (prim.texture?.bindTexture(dc) == true) {
                 program.loadTexCoordMatrix(prim.texCoordMatrix)
                 program.enableTexture(true)
             } else {
                 program.enableTexture(false)
             }
-            dc.gl.lineWidth(prim.lineWidth)
+            if (prim.mode == GL_LINES || prim.mode == GL_LINE_STRIP || prim.mode == GL_LINE_LOOP) dc.gl.lineWidth(
+                prim.lineWidth
+            )
             dc.gl.drawElements(prim.mode, prim.count, prim.type, prim.offset)
         }
 
