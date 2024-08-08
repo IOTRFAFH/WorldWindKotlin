@@ -11,7 +11,7 @@ import earth.worldwind.util.kgl.GL_FLOAT
 open class VertexState {
     internal class VertexAttrib constructor(
         val index: Int = 0,
-        val vertexBuffer: AbstractBufferObject? = null,
+        val vertexBuffer: AbstractBufferObject,
         val size: Int = 0,
         val type: Int = GL_FLOAT,
         val normalized: Boolean = false,
@@ -41,21 +41,19 @@ open class VertexState {
     fun bind(dc: DrawContext): Boolean {
         var bindSuccessful = true
         for (vertexAttrib in attributes) {
-            if (vertexAttrib.vertexBuffer != null) {
-                bindSuccessful = vertexAttrib.vertexBuffer.bindBuffer(dc)
-                if (bindSuccessful) {
-                    dc.gl.enableVertexAttribArray(vertexAttrib.index)
-                    dc.gl.vertexAttribPointer(
-                        vertexAttrib.index,
-                        vertexAttrib.size,
-                        vertexAttrib.type,
-                        vertexAttrib.normalized,
-                        vertexAttrib.stride,
-                        vertexAttrib.offset
-                    )
-                } else {
-                    break
-                }
+            bindSuccessful = vertexAttrib.vertexBuffer.bindBuffer(dc)
+            if (bindSuccessful) {
+                dc.gl.enableVertexAttribArray(vertexAttrib.index)
+                dc.gl.vertexAttribPointer(
+                    vertexAttrib.index,
+                    vertexAttrib.size,
+                    vertexAttrib.type,
+                    vertexAttrib.normalized,
+                    vertexAttrib.stride,
+                    vertexAttrib.offset
+                )
+            } else {
+                break
             }
         }
         return bindSuccessful
@@ -63,10 +61,8 @@ open class VertexState {
 
     fun unbind(dc: DrawContext) {
         for (vertexAttrib in attributes) {
-            if (vertexAttrib.vertexBuffer != null) {
-                if (vertexAttrib.index == 0) continue // skip 0 for now as it's always enabled and disabling it here will cause lots of headache
-                dc.gl.disableVertexAttribArray(vertexAttrib.index)
-            }
+            if (vertexAttrib.index == 0) continue // skip 0 for now as it's always enabled and disabling it here will cause lots of headache
+            dc.gl.disableVertexAttribArray(vertexAttrib.index)
         }
     }
 }
