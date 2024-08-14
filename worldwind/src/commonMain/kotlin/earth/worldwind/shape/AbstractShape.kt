@@ -47,6 +47,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected lateinit var activeAttributes: ShapeAttributes
     protected var isSurfaceShape = false
     protected var lastGlobeState: Globe.State? = null
+    protected var pickedObjectIdKey = Any()
     protected var pickedObjectId = 0
     protected val pickColor = Color()
     protected val boundingSector = Sector()
@@ -65,8 +66,8 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
 
         // Keep track of the drawable count to determine whether this shape has enqueued drawables.
         val drawableCount = rc.drawableCount
+        pickedObjectId = rc.nextPickedObjectId(pickedObjectIdKey) // update cache each frame
         if (rc.isPickMode) {
-            pickedObjectId = rc.nextPickedObjectId()
             PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
         }
 
@@ -148,6 +149,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected open fun reset() {
         boundingBox.setToUnitBox()
         boundingSector.setEmpty()
+        pickedObjectIdKey = Any()
     }
 
     protected abstract fun makeDrawable(rc: RenderContext)

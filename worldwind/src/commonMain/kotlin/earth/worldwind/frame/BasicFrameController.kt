@@ -77,7 +77,7 @@ open class BasicFrameController: FrameController {
         if (rc.terrain.sector.isEmpty) return  // no terrain to pick
 
         // Acquire a unique picked object ID for terrain.
-        val pickedObjectId = rc.nextPickedObjectId()
+        val pickedObjectId = rc.nextPickedObjectId(Any())
 
         // Enqueue a drawable for processing on the OpenGL thread that displays terrain in the unique pick color.
         val pool = rc.getDrawablePool<DrawableSurfaceColor>()

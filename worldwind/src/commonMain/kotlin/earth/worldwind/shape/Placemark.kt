@@ -278,7 +278,7 @@ open class Placemark @JvmOverloads constructor(
         // Keep track of the drawable count to determine whether this placemark has enqueued drawables.
         val drawableCount = rc.drawableCount
         if (rc.isPickMode) {
-            pickedObjectId = rc.nextPickedObjectId()
+            pickedObjectId = rc.nextPickedObjectId(Any())
             PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
         }
 

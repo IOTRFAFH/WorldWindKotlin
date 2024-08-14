@@ -135,7 +135,7 @@ open class Label @JvmOverloads constructor(
         // Keep track of the drawable count to determine whether this label has enqueued drawables.
         val drawableCount = rc.drawableCount
         if (rc.isPickMode) {
-            renderData.pickedObjectId = rc.nextPickedObjectId()
+            renderData.pickedObjectId = rc.nextPickedObjectId(Any())
             PickedObject.identifierToUniqueColor(renderData.pickedObjectId, renderData.pickColor)
         }
 

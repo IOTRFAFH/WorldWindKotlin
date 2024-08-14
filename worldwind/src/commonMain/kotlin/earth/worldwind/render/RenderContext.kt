@@ -37,6 +37,7 @@ open class RenderContext {
     lateinit var currentLayer: Layer
     lateinit var camera: Camera
     lateinit var renderResourceCache: RenderResourceCache
+    lateinit var pickColorIdList: PickColorIdList
     var densityFactor = 1f
     var verticalExaggeration = 1.0
     var horizonDistance = 0.0
@@ -62,7 +63,6 @@ open class RenderContext {
     var isPickMode = false
     var isRedrawRequested = false
         protected set
-    private var pickedObjectId = 0
     private var pixelSizeFactor = 0.0
     private val userProperties = mutableMapOf<Any, Any>()
     val drawablePools = mutableMapOf<Any, Pool<*>>()
@@ -96,7 +96,6 @@ open class RenderContext {
         pickPoint = null
         pickRay = null
         isPickMode = false
-        pickedObjectId = 0
         isRedrawRequested = false
         pixelSizeFactor = 0.0
         userProperties.clear()
@@ -365,9 +364,9 @@ open class RenderContext {
 
     fun offerPickedObject(pickedObject: PickedObject) { pickedObjects?.offerPickedObject(pickedObject) }
 
-    fun nextPickedObjectId(): Int {
-        if (++pickedObjectId > MAX_PICKED_OBJECT_ID) pickedObjectId = 1
-        return pickedObjectId
+    // TODO fix this non-null assertion by introducing good behaviour on range exhaustion
+    fun nextPickedObjectId(key: Any) : Int {
+        return pickColorIdList.run { ((get(key) ?: put(key))!!) }
     }
 
     @Suppress("UNCHECKED_CAST")

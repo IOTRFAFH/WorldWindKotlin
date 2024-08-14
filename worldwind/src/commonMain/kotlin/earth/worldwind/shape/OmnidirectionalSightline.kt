@@ -130,7 +130,7 @@ open class OmnidirectionalSightline @JvmOverloads constructor(
 
         // Configure the pick color when rendering in pick mode.
         if (rc.isPickMode) {
-            pickedObjectId = rc.nextPickedObjectId()
+            pickedObjectId = rc.nextPickedObjectId(Any())
             PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
         }
 

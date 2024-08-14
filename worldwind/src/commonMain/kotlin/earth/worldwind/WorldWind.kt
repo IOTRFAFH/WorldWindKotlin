@@ -13,6 +13,7 @@ import earth.worldwind.globe.Globe
 import earth.worldwind.globe.terrain.BasicTessellator
 import earth.worldwind.globe.terrain.Tessellator
 import earth.worldwind.layer.LayerList
+import earth.worldwind.render.PickColorIdList
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.RenderResourceCache
 import earth.worldwind.util.Logger
@@ -114,6 +115,10 @@ open class WorldWind @JvmOverloads constructor(
      * The number of bits in the depth buffer associated with this WorldWind.
      */
     protected var depthBits = 0
+    /**
+     * Pick color cache.
+     */
+    private val pickColorIdList = PickColorIdList()
     private val scratchModelview = Matrix4()
     private val scratchProjection = Matrix4()
     private val scratchPoint = Vec3()
@@ -133,6 +138,8 @@ open class WorldWind @JvmOverloads constructor(
     open fun reset() {
         // Clear the render resource cache; it's entries are now invalid.
         renderResourceCache.clear()
+
+        pickColorIdList.clear()
 
         // Invalidate elevation model.
         globe.elevationModel.invalidate()
@@ -443,6 +450,7 @@ open class WorldWind @JvmOverloads constructor(
             cameraPosition.latitude, cameraPosition.longitude, cameraPosition.altitude, rc.cameraPoint
         )
         rc.renderResourceCache = renderResourceCache
+        rc.pickColorIdList = pickColorIdList
         rc.verticalExaggeration = verticalExaggeration
         rc.densityFactor = densityFactor
         rc.atmosphereAltitude = atmosphereAltitude
@@ -529,6 +537,12 @@ open class WorldWind @JvmOverloads constructor(
 
         // Release resources evicted during the previous frame.
         renderResourceCache.releaseEvictedResources(dc)
+
+        // Increment age on each frame
+        pickColorIdList.incAge()
+
+        // Trim entries that weren't touched
+        pickColorIdList.trimToAge(FRAMES_TO_TRIM_PICK_COLOR_CACHE)
 
         // Mark the end of a frame draw.
         if (!pickMode) frameMetrics?.endDrawing(dc)
@@ -653,6 +667,8 @@ open class WorldWind @JvmOverloads constructor(
 
     companion object {
         protected const val COLLISION_THRESHOLD = 10.0 // 10m above surface
+        // TODO choose something sensible
+        private const val FRAMES_TO_TRIM_PICK_COLOR_CACHE = 100L
 
         private val _events = MutableSharedFlow<Event>(extraBufferCapacity = 1)
 

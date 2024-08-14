@@ -29,7 +29,7 @@ open class SurfaceImage(sector: Sector, var imageSource: ImageSource): AbstractS
 
         // Enqueue a picked object that associates the drawable surface texture with this surface image.
         if (rc.isPickMode) {
-            val pickedObjectId = rc.nextPickedObjectId()
+            val pickedObjectId = rc.nextPickedObjectId(Any())
             PickedObject.identifierToUniqueColor(pickedObjectId, drawable.color)
             rc.offerPickedObject(PickedObject.fromRenderable(pickedObjectId, this, rc.currentLayer))
         }
