@@ -15,66 +15,86 @@ import earth.worldwind.util.kgl.*
 import kotlin.jvm.JvmOverloads
 
 open class StaticPathData(
-    var positions: List<Position>, color: Color, lineWidth : Float, highlightColor: Color, highlightLineWidth : Float)
-    : Highlightable
-{
+    val positions: MutableList<Position>, color: Color, lineWidth : Float, highlightColor: Color, highlightLineWidth : Float)
+    : Highlightable {
+
     private var color = color
         set(value) {
-            if(field != value) {
-                field = value
-                isColorDirty = true
-            }
-        }
-    private var lineWidth  = lineWidth
-        set(value) {
-            if(field != value) {
-                field = value
-                isLineWidthDirty = true
+            if (field != value) {
+                field.copy(value)
+                isColorDirty = isColorDirty || !isHighlighted
             }
         }
 
-    private var highLightedColor  = highlightColor
+    private var lineWidth = lineWidth
         set(value) {
-            field = value
-            isColorDirty = isColorDirty || isHighlighted
+            if (field != value) {
+                field = value
+                isLineWidthDirty = isLineWidthDirty || !isHighlighted
+            }
         }
+
+    private var highLightedColor = highlightColor
+        set(value) {
+            if (field != value) {
+                field.copy(value)
+                isColorDirty = isColorDirty || isHighlighted
+            }
+        }
+
     private var highlightedLineWidth = highlightLineWidth
         set(value) {
-            field = value
-            isLineWidthDirty = isLineWidthDirty || isHighlighted
+            if (field != value) {
+                field = value
+                isLineWidthDirty = isLineWidthDirty || isHighlighted
+            }
         }
-
-    fun determineActiveAttribs()
-    {
-        isColorDirty = (isHighlighted && activeColor != highLightedColor) || (!isHighlighted && activeColor != color)
-        isLineWidthDirty = (isHighlighted && activeLineWeight != highlightedLineWidth) || (!isHighlighted && activeLineWeight != lineWidth)
-        activeColor = if(isHighlighted) highLightedColor else color
-        activeLineWeight = if(isHighlighted) highlightedLineWidth else lineWidth
-    }
 
     var pickColorIdKey = Any()
         private set
 
-    var pickColorId : Int = 0
+    var pickColorId: Int = 0
         set(value) {
-            if(field != value) {
+            if (field != value) {
                 field = value
-                pickColor = PickedObject.identifierToUniqueColor(value, pickColor)
+                PickedObject.identifierToUniqueColor(value, pickColor)
                 isPickColorDirty = true
             }
         }
-    var pickColor = Color()
-        private set
 
-    var vertexCount : Int = 0
+    val pickColor = Color()
 
+    var vertexCount: Int = 0
     var activeColor = Color()
     var activeLineWeight = 0.0f
     var isColorDirty = false
     var isPickColorDirty = false
     var isLineWidthDirty = false
+    var isPositionsDirty = false
 
     override var isHighlighted = false
+        set(value) {
+            if (field != value) {
+                field = value
+                isColorDirty = true
+                isLineWidthDirty = true
+            }
+        }
+
+    fun determineActiveAttribs() {
+        activeColor = if (isHighlighted) highLightedColor else color
+        activeLineWeight = if (isHighlighted) highlightedLineWidth else lineWidth
+    }
+
+    fun removePosition(position: Position) {
+        positions.remove(position)
+        isPositionsDirty = true
+    }
+
+    fun addPosition(position: Position) {
+        positions.add(position)
+        isPositionsDirty = true
+    }
 }
 
 open class LinesBatch @JvmOverloads constructor(
@@ -86,7 +106,6 @@ open class LinesBatch @JvmOverloads constructor(
     protected var pickColorArray = IntArray(0)
     protected var widthArray = FloatArray(0)
     protected var vertexIndex = 0
-    // TODO Use ShortArray instead of mutableListOf<Short> to avoid unnecessary memory re-allocations
     protected val outlineElements = mutableListOf<Int>()
     protected lateinit var vertexBufferKey: Any
     protected lateinit var colorBufferKey: Any
@@ -122,45 +141,42 @@ open class LinesBatch @JvmOverloads constructor(
     override fun makeDrawable(rc: RenderContext) {
         if (paths.isEmpty()) return  // nothing to draw
 
+        var resetPositions = vertexArray.isEmpty()
+        var resetColor = false
+        var resetPickColor = false
+        var resetLineWidth = false
         for (path in paths) {
             if (path.positions.isEmpty()) continue
 
+            // update pickColor cache
             path.pickColorId = rc.nextPickedObjectId(path.pickColorIdKey)
             path.determineActiveAttribs()
 
             if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromAny(path.pickColorId, path))
 
-            if(path.isPickColorDirty)
-            {
-                // reset pickColor
-                pickColorArray  = IntArray(0)
-                path.isPickColorDirty = false
-            }
+            // reset everything if positions have been modified
+            resetPositions = resetPositions || path.isPositionsDirty
+            resetColor = resetPositions || resetColor || path.isColorDirty
+            resetPickColor = resetPositions || resetPickColor || path.isPickColorDirty
+            resetLineWidth = resetPositions || resetLineWidth || path.isLineWidthDirty
 
-            if(path.isColorDirty)
-            {
-                // reset color
-                colorArray = IntArray(0)
-                path.isColorDirty = false
-            }
-
-            if(path.isLineWidthDirty)
-            {
-                // reset width
-                widthArray = FloatArray(0)
-                path.isLineWidthDirty = false
-            }
+            path.isPositionsDirty = false
+            path.isPickColorDirty = false
+            path.isColorDirty = false
+            path.isLineWidthDirty = false
         }
 
-        if (mustAssembleGeometry()) {
+        // reset caches depending on flags
+        if (resetPositions) {
             vertexBufferKey = nextCacheKey()
             elementBufferKey = nextCacheKey()
         }
-        if(mustAssembleColor()) colorBufferKey = nextCacheKey()
-        if(mustAssemblePickColor()) pickColorBufferKey = nextCacheKey()
-        if(mustAssembleLineWidth()) widthBufferKey = nextCacheKey()
+        if(resetColor) colorBufferKey = nextCacheKey()
+        if(resetPickColor) pickColorBufferKey = nextCacheKey()
+        if(resetLineWidth) widthBufferKey = nextCacheKey()
 
-        assembleBuffers(rc, mustAssembleGeometry(), mustAssembleColor(), mustAssemblePickColor(), mustAssembleLineWidth())
+        // assemble buffer depending on flags
+        assembleBuffers(rc, resetPositions, resetColor, resetPickColor, resetLineWidth)
 
         // Obtain a drawable form the render context pool, and compute distance to the render camera.
         val drawable: Drawable
@@ -220,9 +236,9 @@ open class LinesBatch @JvmOverloads constructor(
             )
         }
 
+        // Configure the drawable according to the shape's attributes.
         drawState.isLine = true
         drawState.isStatic = true
-        // Configure the drawable according to the shape's attributes.
         drawState.vertexOrigin.copy(vertexOrigin)
         drawState.enableCullFace = false
         drawState.enableDepthTest = activeAttributes.isDepthTest
@@ -232,11 +248,6 @@ open class LinesBatch @JvmOverloads constructor(
         if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
         else rc.offerShapeDrawable(drawable, cameraDistance)
     }
-
-    protected open fun mustAssembleGeometry() = vertexArray.isEmpty()
-    protected open fun mustAssembleColor() = colorArray.isEmpty()
-    protected open fun mustAssemblePickColor() = pickColorArray.isEmpty()
-    protected open fun mustAssembleLineWidth() = widthArray.isEmpty()
 
     protected open fun assembleBuffers(rc: RenderContext, assembleGeometry : Boolean, assembleColor : Boolean, assemblePickColor : Boolean, assembleWidth: Boolean) {
         if(!(assembleGeometry || assembleColor || assemblePickColor || assembleWidth)) return
@@ -266,7 +277,6 @@ open class LinesBatch @JvmOverloads constructor(
             vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
             outlineElements.clear()
         }
-
         if(assembleColor) colorArray = IntArray(vertexCount * 2)
         if(assemblePickColor) pickColorArray = IntArray(vertexCount * 2)
         if(assembleWidth) widthArray = FloatArray(vertexCount * 2)
@@ -302,15 +312,17 @@ open class LinesBatch @JvmOverloads constructor(
         }
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.
-        if (isSurfaceShape) {
-            boundingSector.setEmpty()
-            boundingSector.union(vertexArray, vertexIndex, VERTEX_STRIDE)
-            boundingSector.translate(vertexOrigin.y /*latitude*/, vertexOrigin.x /*longitude*/)
-            boundingBox.setToUnitBox() // Surface/geographic shape bounding box is unused
-        } else {
-            boundingBox.setToPoints(vertexArray, vertexIndex, VERTEX_STRIDE)
-            boundingBox.translate(vertexOrigin.x, vertexOrigin.y, vertexOrigin.z)
-            boundingSector.setEmpty() // Cartesian shape bounding sector is unused
+        if(assembleGeometry) {
+            if (isSurfaceShape) {
+                boundingSector.setEmpty()
+                boundingSector.union(vertexArray, vertexIndex, VERTEX_STRIDE)
+                boundingSector.translate(vertexOrigin.y /*latitude*/, vertexOrigin.x /*longitude*/)
+                boundingBox.setToUnitBox() // Surface/geographic shape bounding box is unused
+            } else {
+                boundingBox.setToPoints(vertexArray, vertexIndex, VERTEX_STRIDE)
+                boundingBox.translate(vertexOrigin.x, vertexOrigin.y, vertexOrigin.z)
+                boundingSector.setEmpty() // Cartesian shape bounding sector is unused
+            }
         }
     }
 

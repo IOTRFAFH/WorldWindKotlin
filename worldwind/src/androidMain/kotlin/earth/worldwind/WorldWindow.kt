@@ -16,7 +16,6 @@ import earth.worldwind.geom.Vec2
 import earth.worldwind.geom.Viewport
 import earth.worldwind.gesture.SelectDragDetector
 import earth.worldwind.navigator.NavigatorEventSupport
-import earth.worldwind.render.PickColorIdList
 import earth.worldwind.render.RenderResourceCache
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
