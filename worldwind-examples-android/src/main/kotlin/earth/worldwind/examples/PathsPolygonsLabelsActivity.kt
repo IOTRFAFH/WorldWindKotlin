@@ -210,7 +210,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
 
-                        linesBatch.addPath(StaticPathData(positions, Color(1.0f, 1.0f, 0.0f, 1.0f), 3f))
+                        linesBatch.addPath(StaticPathData(positions, Color(1.0f, 1.0f, 0.0f, 1.0f), 3f, Color(1.0f, 0.0f, 0.0f, 1.0f), 7f))
 //                        val path = Path(positions, attrs)
 //                        path.highlightAttributes = highlightAttrs
 //                        path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
@@ -301,7 +301,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                                 positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                             }
                             polygon.addBoundary(positions)
-                            linesBatch.addPath(StaticPathData(positions, polygon.attributes.outlineColor, polygon.attributes.outlineWidth))
+                            linesBatch.addPath(StaticPathData(positions, polygon.attributes.outlineColor, polygon.attributes.outlineWidth, highlightAttrs.outlineColor, highlightAttrs.outlineWidth))
 
                             // Locate the next polygon in the feature
                             polyStart = feature.indexOf("(", polyEnd)
@@ -379,8 +379,8 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                 if (pickedObject is Highlightable) {
                     pickedObject.isHighlighted = !pickedObject.isHighlighted
                     if (pickedObject.isHighlighted) {
-                        if (message.isNotEmpty()) message.append(", ")
-                        message.append((pickedObject as Renderable).displayName)
+                        //if (message.isNotEmpty()) message.append(", ")
+                        //message.append((pickedObject as Renderable).displayName)
                     }
                 }
             }

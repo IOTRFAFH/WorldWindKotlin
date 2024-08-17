@@ -1,5 +1,6 @@
 package earth.worldwind.shape
 
+import earth.worldwind.PickedObject
 import earth.worldwind.draw.DrawShapeState
 import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
@@ -14,25 +15,82 @@ import earth.worldwind.util.kgl.*
 import kotlin.jvm.JvmOverloads
 
 open class StaticPathData(
-    var positions: List<Position>,  var color: Color, var lineWidth : Float)
+    var positions: List<Position>, color: Color, lineWidth : Float, highlightColor: Color, highlightLineWidth : Float)
+    : Highlightable
 {
+    private var color = color
+        set(value) {
+            if(field != value) {
+                field = value
+                isColorDirty = true
+            }
+        }
+    private var lineWidth  = lineWidth
+        set(value) {
+            if(field != value) {
+                field = value
+                isLineWidthDirty = true
+            }
+        }
+
+    private var highLightedColor  = highlightColor
+        set(value) {
+            field = value
+            isColorDirty = isColorDirty || isHighlighted
+        }
+    private var highlightedLineWidth = highlightLineWidth
+        set(value) {
+            field = value
+            isLineWidthDirty = isLineWidthDirty || isHighlighted
+        }
+
+    fun determineActiveAttribs()
+    {
+        isColorDirty = (isHighlighted && activeColor != highLightedColor) || (!isHighlighted && activeColor != color)
+        isLineWidthDirty = (isHighlighted && activeLineWeight != highlightedLineWidth) || (!isHighlighted && activeLineWeight != lineWidth)
+        activeColor = if(isHighlighted) highLightedColor else color
+        activeLineWeight = if(isHighlighted) highlightedLineWidth else lineWidth
+    }
+
+    var pickColorIdKey = Any()
+        private set
+
+    var pickColorId : Int = 0
+        set(value) {
+            if(field != value) {
+                field = value
+                pickColor = PickedObject.identifierToUniqueColor(value, pickColor)
+                isPickColorDirty = true
+            }
+        }
+    var pickColor = Color()
+        private set
+
+    var vertexCount : Int = 0
+
+    var activeColor = Color()
+    var activeLineWeight = 0.0f
+    var isColorDirty = false
+    var isPickColorDirty = false
+    var isLineWidthDirty = false
+
+    override var isHighlighted = false
 }
 
 open class LinesBatch @JvmOverloads constructor(
-    pathes: MutableList<StaticPathData> = mutableListOf<StaticPathData>(), attributes: ShapeAttributes = ShapeAttributes()
+    protected val paths: MutableList<StaticPathData> = mutableListOf<StaticPathData>(), attributes: ShapeAttributes = ShapeAttributes()
 ): AbstractShape(attributes) {
-
-    protected val pathes  = pathes
-    val pathesCount get() = pathes.size
 
     protected var vertexArray = FloatArray(0)
     protected var colorArray = IntArray(0)
+    protected var pickColorArray = IntArray(0)
     protected var widthArray = FloatArray(0)
     protected var vertexIndex = 0
     // TODO Use ShortArray instead of mutableListOf<Short> to avoid unnecessary memory re-allocations
     protected val outlineElements = mutableListOf<Int>()
     protected lateinit var vertexBufferKey: Any
     protected lateinit var colorBufferKey: Any
+    protected lateinit var pickColorBufferKey: Any
     protected lateinit var widthBufferKey: Any
     protected lateinit var elementBufferKey: Any
     protected val vertexOrigin = Vec3()
@@ -49,27 +107,60 @@ open class LinesBatch @JvmOverloads constructor(
     fun addPath(staticPathData : StaticPathData): Boolean {
         reset()
         // TODO Make deep copy of positions the same way as for single position shapes?
-        return pathes.add(staticPathData)
+        return paths.add(staticPathData)
     }
 
     override fun reset() {
         super.reset()
         vertexArray = FloatArray(0)
         colorArray = IntArray(0)
+        pickColorArray = IntArray(0)
         widthArray = FloatArray(0)
         outlineElements.clear()
     }
 
     override fun makeDrawable(rc: RenderContext) {
-        if (pathes.isEmpty()) return  // nothing to draw
+        if (paths.isEmpty()) return  // nothing to draw
 
-        if (mustAssembleGeometry(rc)) {
-            assembleGeometry(rc)
+        for (path in paths) {
+            if (path.positions.isEmpty()) continue
+
+            path.pickColorId = rc.nextPickedObjectId(path.pickColorIdKey)
+            path.determineActiveAttribs()
+
+            if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromAny(path.pickColorId, path))
+
+            if(path.isPickColorDirty)
+            {
+                // reset pickColor
+                pickColorArray  = IntArray(0)
+                path.isPickColorDirty = false
+            }
+
+            if(path.isColorDirty)
+            {
+                // reset color
+                colorArray = IntArray(0)
+                path.isColorDirty = false
+            }
+
+            if(path.isLineWidthDirty)
+            {
+                // reset width
+                widthArray = FloatArray(0)
+                path.isLineWidthDirty = false
+            }
+        }
+
+        if (mustAssembleGeometry()) {
             vertexBufferKey = nextCacheKey()
             elementBufferKey = nextCacheKey()
-            colorBufferKey = nextCacheKey()
-            widthBufferKey = nextCacheKey()
         }
+        if(mustAssembleColor()) colorBufferKey = nextCacheKey()
+        if(mustAssemblePickColor()) pickColorBufferKey = nextCacheKey()
+        if(mustAssembleLineWidth()) widthBufferKey = nextCacheKey()
+
+        assembleBuffers(rc, mustAssembleGeometry(), mustAssembleColor(), mustAssemblePickColor(), mustAssembleLineWidth())
 
         // Obtain a drawable form the render context pool, and compute distance to the render camera.
         val drawable: Drawable
@@ -103,7 +194,8 @@ open class LinesBatch @JvmOverloads constructor(
         drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 0,0) // texCoord
 
         val colorBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
-        drawState.vertexState.addAttribute(4, colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4,0) // color
+        val pickColorBuffer = rc.getBufferObject(pickColorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, pickColorArray) }
+        drawState.vertexState.addAttribute(4, if(rc.isPickMode) pickColorBuffer else colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4, 0) // color
 
         val widthBuffer = rc.getBufferObject(widthBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, widthArray) }
         drawState.vertexState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 4,0) // lineWidth
@@ -141,57 +233,72 @@ open class LinesBatch @JvmOverloads constructor(
         else rc.offerShapeDrawable(drawable, cameraDistance)
     }
 
-    protected open fun mustAssembleGeometry(rc: RenderContext) = vertexArray.isEmpty()
+    protected open fun mustAssembleGeometry() = vertexArray.isEmpty()
+    protected open fun mustAssembleColor() = colorArray.isEmpty()
+    protected open fun mustAssemblePickColor() = pickColorArray.isEmpty()
+    protected open fun mustAssembleLineWidth() = widthArray.isEmpty()
 
-    protected open fun assembleGeometry(rc: RenderContext) {
+    protected open fun assembleBuffers(rc: RenderContext, assembleGeometry : Boolean, assembleColor : Boolean, assemblePickColor : Boolean, assembleWidth: Boolean) {
+        if(!(assembleGeometry || assembleColor || assemblePickColor || assembleWidth)) return
+
         val noIntermediatePoints = maximumIntermediatePoints <= 0 || pathType == LINEAR
 
         // Determine the number of vertexes
         var vertexCount = 0
-        for (i in pathes.indices) {
-            val p = pathes[i].positions
+        for (path in paths) {
+            val p = path.positions
 
             if (p.isEmpty()) continue
 
             if (noIntermediatePoints) {
-                vertexCount += p.size + 2
+                path.vertexCount = p.size + 2
             } else {
-                vertexCount += 2 + p.size + (p.size - 1) * maximumIntermediatePoints
+                path.vertexCount = 2 + p.size + (p.size - 1) * maximumIntermediatePoints
             }
+
+            vertexCount += path.vertexCount
         }
 
         // Clear the shape's vertex array and element arrays. These arrays will accumulate values as the shapes's
         // geometry is assembled.
-        vertexIndex = 0
-        vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
-        colorArray = IntArray(vertexCount * 2)
-        widthArray = FloatArray(vertexCount * 2)
-        outlineElements.clear()
+        if(assembleGeometry) {
+            vertexIndex = 0
+            vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
+            outlineElements.clear()
+        }
+
+        if(assembleColor) colorArray = IntArray(vertexCount * 2)
+        if(assemblePickColor) pickColorArray = IntArray(vertexCount * 2)
+        if(assembleWidth) widthArray = FloatArray(vertexCount * 2)
 
         var tempVertexIndex = 0
-        for (i in pathes.indices) {
-            val positions = pathes[i].positions
+        for (path in paths) {
+            val positions = path.positions
             if (positions.isEmpty()) continue  // no boundary positions to assemble
 
-            // Add the first vertex.
-            var begin = positions[0]
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
-            // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
-            for (idx in 1 until positions.size) {
-                val end = positions[idx]
-                addIntermediateVertices(rc, begin, end)
-                addVertex(rc, end.latitude, end.longitude, end.altitude, true)
-                begin = end
-            }
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude,true )
-
-            for(idx in tempVertexIndex until vertexIndex * 2 / VERTEX_STRIDE) {
-                colorArray[idx] = pathes[i].color.toColorIntRGBA()
-                widthArray[idx] = pathes[i].lineWidth + if (isSurfaceShape) 0.5f else 0f
+            if(assembleGeometry) {
+                // Add the first vertex.
+                var begin = positions[0]
+                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
+                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, false)
+                // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
+                for (idx in 1 until positions.size) {
+                    val end = positions[idx]
+                    addIntermediateVertices(rc, begin, end)
+                    addVertex(rc, end.latitude, end.longitude, end.altitude, true)
+                    begin = end
+                }
+                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, true)
             }
 
-            tempVertexIndex = vertexIndex * 2 / VERTEX_STRIDE
+            if(assembleColor || assemblePickColor || assembleWidth) {
+                for (idx in 0 until 2 * path.vertexCount) {
+                    if (assembleColor) colorArray[tempVertexIndex] = path.activeColor.toColorIntRGBA()
+                    if (assemblePickColor) pickColorArray[tempVertexIndex] = path.pickColor.toColorIntRGBA()
+                    if (assembleWidth) widthArray[tempVertexIndex] = path.activeLineWeight + if (isSurfaceShape) 0.5f else 0f
+                    ++tempVertexIndex
+                }
+            }
         }
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.

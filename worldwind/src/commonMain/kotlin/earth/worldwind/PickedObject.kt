@@ -16,6 +16,11 @@ open class PickedObject protected constructor(
 
     companion object {
         @JvmStatic
+        fun fromAny(identifier: Int, userObject: Any): PickedObject {
+            return PickedObject(identifier, userObject)
+        }
+
+        @JvmStatic
         fun fromRenderable(identifier: Int, renderable: Renderable, layer: Layer) =
             PickedObject(identifier, renderable.pickDelegate ?: renderable, layer)
 
