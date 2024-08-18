@@ -15,7 +15,7 @@ import earth.worldwind.util.kgl.*
 import kotlin.jvm.JvmOverloads
 
 open class StaticPathData(
-    val positions: MutableList<Position>, color: Color, lineWidth : Float, highlightColor: Color, highlightLineWidth : Float)
+    val positions: MutableList<Position>, color: Color, lineWidth : Float, highlightColor: Color, highlightLineWidth : Float, val displayName: String?)
     : Highlightable {
 
     private var color = color
@@ -129,6 +129,24 @@ open class LinesBatch @JvmOverloads constructor(
         return paths.add(staticPathData)
     }
 
+    // Override doRender here to remove pick related logic from AbstractShape, it's handled by individual lines
+    override fun doRender(rc: RenderContext) {
+        checkGlobeState(rc)
+        if (!isWithinProjectionLimits(rc)) return
+
+        // Don't render anything if the shape is not visible.
+        if (!intersectsFrustum(rc)) return
+
+        // Select the currently active attributes. Don't render anything if the attributes are unspecified.
+        determineActiveAttributes(rc)
+
+        // Determine whether the shape geometry must be assembled as Cartesian geometry or as geographic geometry.
+        isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
+
+        // Enqueue drawables for processing on the OpenGL thread.
+        makeDrawable(rc)
+    }
+
     override fun reset() {
         super.reset()
         vertexArray = FloatArray(0)
@@ -141,10 +159,10 @@ open class LinesBatch @JvmOverloads constructor(
     override fun makeDrawable(rc: RenderContext) {
         if (paths.isEmpty()) return  // nothing to draw
 
-        var resetPositions = vertexArray.isEmpty()
-        var resetColor = false
-        var resetPickColor = false
-        var resetLineWidth = false
+        var assemblePositions = vertexArray.isEmpty()
+        var assembleColor = false
+        var assemblePickColor = false
+        var assembleLineWidth = false
         for (path in paths) {
             if (path.positions.isEmpty()) continue
 
@@ -155,10 +173,10 @@ open class LinesBatch @JvmOverloads constructor(
             if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromAny(path.pickColorId, path))
 
             // reset everything if positions have been modified
-            resetPositions = resetPositions || path.isPositionsDirty
-            resetColor = resetPositions || resetColor || path.isColorDirty
-            resetPickColor = resetPositions || resetPickColor || path.isPickColorDirty
-            resetLineWidth = resetPositions || resetLineWidth || path.isLineWidthDirty
+            assemblePositions = assemblePositions || path.isPositionsDirty
+            assembleColor = assemblePositions || assembleColor || path.isColorDirty
+            assemblePickColor = assemblePositions || assemblePickColor || path.isPickColorDirty
+            assembleLineWidth = assemblePositions || assembleLineWidth || path.isLineWidthDirty
 
             path.isPositionsDirty = false
             path.isPickColorDirty = false
@@ -167,16 +185,16 @@ open class LinesBatch @JvmOverloads constructor(
         }
 
         // reset caches depending on flags
-        if (resetPositions) {
+        if (assemblePositions) {
             vertexBufferKey = nextCacheKey()
             elementBufferKey = nextCacheKey()
         }
-        if(resetColor) colorBufferKey = nextCacheKey()
-        if(resetPickColor) pickColorBufferKey = nextCacheKey()
-        if(resetLineWidth) widthBufferKey = nextCacheKey()
+        if(assembleColor) colorBufferKey = nextCacheKey()
+        if(assemblePickColor) pickColorBufferKey = nextCacheKey()
+        if(assembleLineWidth) widthBufferKey = nextCacheKey()
 
         // assemble buffer depending on flags
-        assembleBuffers(rc, resetPositions, resetColor, resetPickColor, resetLineWidth)
+        assembleBuffers(rc, assemblePositions, assembleColor, assemblePickColor, assembleLineWidth)
 
         // Obtain a drawable form the render context pool, and compute distance to the render camera.
         val drawable: Drawable

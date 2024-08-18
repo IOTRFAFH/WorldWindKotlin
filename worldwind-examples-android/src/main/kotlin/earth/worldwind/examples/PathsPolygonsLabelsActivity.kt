@@ -206,7 +206,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
 
-                        linesBatch.addPath(StaticPathData(positions, outlineColor, outlineWidth, highlightColor, highlightWidth))
+                        linesBatch.addPath(StaticPathData(positions, outlineColor, outlineWidth, highlightColor, highlightWidth, attributes))
                         numHighwaysCreated++
                     }
                 }
@@ -365,6 +365,10 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                     if (pickedObject.isHighlighted && pickedObject is Renderable) {
                         if (message.isNotEmpty()) message.append(", ")
                         message.append((pickedObject as Renderable).displayName)
+                    }
+                    if (pickedObject.isHighlighted && pickedObject is StaticPathData) {
+                        if (message.isNotEmpty()) message.append(", ")
+                        message.append(pickedObject.displayName)
                     }
                 }
             }
