@@ -110,11 +110,13 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     fun addAllRenderables(iterable: Iterable<Renderable>) { for (renderable in iterable) renderables.add(renderable) }
 
-    fun removeRenderable(renderable: Renderable) {
-        renderables.remove(renderable)
-        if (renderable is Path) {
-            removePathFromBatch(renderable)
+    fun removeRenderable(renderable: Renderable) : Boolean {
+        if (renderables.remove(renderable)) {
+            if (renderable is Path)
+                removePathFromBatch(renderable)
+            return true
         }
+        return false
     }
 
     fun removeRenderable(index: Int): Renderable {
