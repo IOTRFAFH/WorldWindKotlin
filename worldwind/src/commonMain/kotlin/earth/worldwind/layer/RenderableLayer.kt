@@ -172,10 +172,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         for (i in renderables.indices) {
             val renderable = renderables[i]
             try {
-                //AbstractShape doRender method still checks for bounds and
-                //assigns pickColor for batched paths, we just stop it from executing makeDrawable in Path
-                renderable.render(rc)
-
                 // Here we're batching Paths
                 if(renderable is Path) {
                     val pathCanBeBatched = renderable.canBeBatched(rc)
@@ -190,10 +186,12 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                         } else if (pathWasBatched) {
                             updatePath(renderable)
                         }
+                        continue // skip path rendering if it was batched
                     } else if (!pathCanBeBatched && pathWasBatched) {
                         removePathFromBatch(renderable)
                     }
                 }
+                renderable.render(rc)
             } catch (e: Exception) {
                 logMessage(
                     ERROR, "RenderableLayer", "doRender",

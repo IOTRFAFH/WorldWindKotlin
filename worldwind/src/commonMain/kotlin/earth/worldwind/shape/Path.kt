@@ -57,6 +57,8 @@ open class Path @JvmOverloads constructor(
     }
 
     fun canBeBatched(rc : RenderContext) : Boolean {
+        determineActiveAttributes(rc)
+        isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
         return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null && activeAttributes.isDepthTest && activeAttributes.isDepthWrite
     }
 
@@ -74,7 +76,6 @@ open class Path @JvmOverloads constructor(
 
     override fun makeDrawable(rc: RenderContext) {
         if (positions.size < 2) return // nothing to draw
-        if (canBeBatched(rc)) return
 
         if (mustAssembleGeometry(rc)) {
             assembleGeometry(rc)

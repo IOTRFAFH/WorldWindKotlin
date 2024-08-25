@@ -49,9 +49,8 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     var isSurfaceShape = false
         protected set
     protected var lastGlobeState: Globe.State? = null
-    protected val pickedObjectIdKey = Any()
+    val pickedObjectIdKey = Any()
     var pickedObjectId = 0
-        protected set
     val pickColor = Color()
     protected val boundingSector = Sector()
     protected val boundingBox = BoundingBox()

@@ -99,6 +99,9 @@ open class LinesBatch(private val isSurfaceShape : Boolean): Boundable {
             assemblePositions = assemblePositions || path.forceRecreateBatch
             path.forceRecreateBatch = false
 
+            path.pickedObjectId = rc.nextPickedObjectId(path.pickedObjectIdKey) // update cache each frame
+            PickedObject.identifierToUniqueColor(path.pickedObjectId, path.pickColor)
+
             if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromRenderable(path.pickedObjectId, path, rc.currentLayer))
         }
 
