@@ -165,15 +165,11 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
             val attrs = ShapeAttributes()
             attrs.outlineColor.set(1.0f, 1.0f, 0.0f, 1.0f)
             attrs.outlineWidth = 3f
+
             // Define the shape attributes used for highlighted "highways"
             val highlightAttrs = ShapeAttributes()
             highlightAttrs.outlineColor.set(1.0f, 0.0f, 0.0f, 1.0f)
             highlightAttrs.outlineWidth = 7f
-
-            val outlineColor = Color(1.0f, 1.0f, 0.0f, 1.0f)
-            val outlineWidth = 3f
-            val highlightColor = Color(1.0f, 0.0f, 0.0f, 1.0f)
-            val highlightWidth = 7f
 
             // Load the highways
             try {
@@ -206,7 +202,6 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             val xy = tuple.split(" ")
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
-
                         val path = Path(positions, attrs)
                         path.highlightAttributes = highlightAttrs
                         path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
@@ -370,7 +365,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
             for (pickedObject in pickedObjects) {
                 if (pickedObject is Highlightable) {
                     pickedObject.isHighlighted = !pickedObject.isHighlighted
-                    if (pickedObject.isHighlighted && pickedObject is Renderable) {
+                    if (pickedObject.isHighlighted) {
                         if (message.isNotEmpty()) message.append(", ")
                         message.append((pickedObject as Renderable).displayName)
                     }

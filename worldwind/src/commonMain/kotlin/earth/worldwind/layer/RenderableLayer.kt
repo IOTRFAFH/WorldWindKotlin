@@ -95,9 +95,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return -1
     }
 
-    fun addRenderable(renderable: Renderable) {
-        renderables.add(renderable)
-    }
+    fun addRenderable(renderable: Renderable) { renderables.add(renderable) }
 
     fun addRenderable(index: Int, renderable: Renderable) {
         require(index in renderables.indices) {
@@ -108,14 +106,10 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     fun addAllRenderables(layer: RenderableLayer) {
         //renderables.ensureCapacity(layer.renderables.size)
-        for (renderable in layer.renderables) {
-            renderables.add(renderable) // we know the contents of layer.renderables is valid
-        }
+        for (renderable in layer.renderables) renderables.add(renderable) // we know the contents of layer.renderables is valid
     }
 
-    fun addAllRenderables(iterable: Iterable<Renderable>) { for (renderable in iterable) {
-        renderables.add(renderable)
-    } }
+    fun addAllRenderables(iterable: Iterable<Renderable>) { for (renderable in iterable) renderables.add(renderable) }
 
     fun removeRenderable(renderable: Renderable) {
         renderables.remove(renderable)
@@ -146,7 +140,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return removed
     }
 
-    fun clearRenderables() = renderables.clear()
+    fun clearRenderables() { renderables.clear() }
 
     private fun addPathToBatch(path: Path) {
         if (path.isSurfaceShape) {
