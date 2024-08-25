@@ -5,6 +5,7 @@ import earth.worldwind.draw.Drawable
 import earth.worldwind.draw.DrawableShape
 import earth.worldwind.draw.DrawableSurfaceShape
 import earth.worldwind.geom.*
+import earth.worldwind.layer.RenderableLayer
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
 import earth.worldwind.render.buffer.IntBufferObject
@@ -41,7 +42,8 @@ open class Path @JvmOverloads constructor(
     private val prevPoint = Vec3()
     private val texCoordMatrix = Matrix3()
     private val intermediateLocation = Location()
-    var isDirty = false
+    var forceRecreateBatch = false
+    var allowBatching = true
     var vertexCount = 0
 
     companion object {
@@ -55,9 +57,10 @@ open class Path @JvmOverloads constructor(
     }
 
     fun canBeBatched(rc : RenderContext) : Boolean {
-        super.determineActiveAttributes(rc)
-        return (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null && activeAttributes.isDepthTest && activeAttributes.isDepthWrite
+        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null && activeAttributes.isDepthTest && activeAttributes.isDepthWrite
     }
+
+    fun forceReset() { reset() }
 
     override fun reset() {
         super.reset()
@@ -66,7 +69,7 @@ open class Path @JvmOverloads constructor(
         outlineElements.clear()
         verticalElements.clear()
         vertexCount = 0
-        isDirty = true
+        forceRecreateBatch = true
     }
 
     override fun makeDrawable(rc: RenderContext) {
@@ -178,7 +181,7 @@ open class Path @JvmOverloads constructor(
         if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
         else rc.offerShapeDrawable(drawable, cameraDistance)
 
-        isDirty = false
+        forceRecreateBatch = false
     }
 
     protected open fun mustAssembleGeometry(rc: RenderContext) = vertexArray.isEmpty()

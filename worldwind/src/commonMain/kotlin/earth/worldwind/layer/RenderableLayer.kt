@@ -37,8 +37,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
         fun removePath(path: Path) {
             val batch = pathToBatch[path] ?: return
-            batch.removePath(path)
-            freeBatches.add(batch)
+            if (batch.removePath(path) && !freeBatches.contains(batch)) freeBatches.add(batch)
             pathToBatch.remove(path)
         }
 
@@ -173,18 +172,26 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         for (i in renderables.indices) {
             val renderable = renderables[i]
             try {
+                //AbstractShape doRender method still checks for bounds and
+                //assigns pickColor for batched paths, we just stop it from executing makeDrawable in Path
                 renderable.render(rc)
 
                 // Here we're batching Paths
-                if(renderable is Path && renderable.canBeBatched(rc)) {
+                if(renderable is Path) {
+                    val pathCanBeBatched = renderable.canBeBatched(rc)
                     val pathWasBatched =
                         surfaceLinesBatch.containsPath(renderable) || globeLinesBatch.containsPath(
                             renderable
                         )
-                    if (!pathWasBatched) {
-                        addPathToBatch(renderable)
-                    } else if (pathWasBatched) {
-                        updatePath(renderable)
+                    if (pathCanBeBatched) {
+                        if (!pathWasBatched) {
+                            renderable.forceReset()
+                            addPathToBatch(renderable)
+                        } else if (pathWasBatched) {
+                            updatePath(renderable)
+                        }
+                    } else if (!pathCanBeBatched && pathWasBatched) {
+                        removePathFromBatch(renderable)
                     }
                 }
             } catch (e: Exception) {

@@ -49,7 +49,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     var isSurfaceShape = false
         protected set
     protected var lastGlobeState: Globe.State? = null
-    protected var pickedObjectIdKey = Any()
+    protected val pickedObjectIdKey = Any()
     var pickedObjectId = 0
         protected set
     val pickColor = Color()
@@ -150,7 +150,6 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected open fun reset() {
         boundingBox.setToUnitBox()
         boundingSector.setEmpty()
-        pickedObjectIdKey = Any()
     }
 
     protected abstract fun makeDrawable(rc: RenderContext)

@@ -370,7 +370,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                         message.append((pickedObject as Renderable).displayName)
                     }
                     if (pickedObject is Path) {
-                        pickedObject.isDirty = true
+                        pickedObject.forceRecreateBatch = true
                     }
                 }
             }

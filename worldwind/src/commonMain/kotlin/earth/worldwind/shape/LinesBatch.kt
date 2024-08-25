@@ -12,7 +12,6 @@ import earth.worldwind.render.buffer.IntBufferObject
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.shape.PathType.*
 import earth.worldwind.util.kgl.*
-import kotlin.jvm.JvmOverloads
 
 open class LinesBatch(private val isSurfaceShape : Boolean): Boundable {
 
@@ -58,14 +57,14 @@ open class LinesBatch(private val isSurfaceShape : Boolean): Boundable {
         return true
     }
 
-    fun removePath(path : Path) {
-        if (pathCount == 0) return
-
+    fun removePath(path : Path) : Boolean {
+        if (pathCount == 0) return false
         val index = paths.indexOf(path)
-        if (index == -1) return
-        paths[index] = paths[pathCount]
-        --pathCount
+        if (index == -1) return false
+        paths[index] = paths[--pathCount]
+        paths[pathCount] = null
         reset()
+        return true
     }
 
     // Override doRender here to remove pick related logic from AbstractShape, it's handled by individual lines
@@ -97,8 +96,8 @@ open class LinesBatch(private val isSurfaceShape : Boolean): Boundable {
             val path = paths[idx] ?: break
             if (path.positions.isEmpty()) continue
 
-            assemblePositions = assemblePositions || path.isDirty
-            path.isDirty = false
+            assemblePositions = assemblePositions || path.forceRecreateBatch
+            path.forceRecreateBatch = false
 
             if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromRenderable(path.pickedObjectId, path, rc.currentLayer))
         }
