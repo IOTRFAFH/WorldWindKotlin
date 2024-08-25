@@ -44,12 +44,15 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     override var highlightAttributes: ShapeAttributes? = null
     override var isHighlighted = false
     var maximumIntermediatePoints = 10
-    protected lateinit var activeAttributes: ShapeAttributes
-    protected var isSurfaceShape = false
+    lateinit var activeAttributes: ShapeAttributes
+        protected set
+    var isSurfaceShape = false
+        protected set
     protected var lastGlobeState: Globe.State? = null
     protected var pickedObjectIdKey = Any()
-    protected var pickedObjectId = 0
-    protected val pickColor = Color()
+    var pickedObjectId = 0
+        protected set
+    val pickColor = Color()
     protected val boundingSector = Sector()
     protected val boundingBox = BoundingBox()
     private val scratchPoint = Vec3()
@@ -67,9 +70,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         // Keep track of the drawable count to determine whether this shape has enqueued drawables.
         val drawableCount = rc.drawableCount
         pickedObjectId = rc.nextPickedObjectId(pickedObjectIdKey) // update cache each frame
-        if (rc.isPickMode) {
-            PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
-        }
+        PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
 
         // Determine whether the shape geometry must be assembled as Cartesian geometry or as geographic geometry.
         isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain

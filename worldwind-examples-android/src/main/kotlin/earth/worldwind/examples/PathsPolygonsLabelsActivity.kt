@@ -162,12 +162,13 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
          */
         private fun loadHighways() {
             // Define the normal shape attributes
-            val linesBatch = LinesBatch().apply {
-                altitudeMode = AltitudeMode.CLAMP_TO_GROUND
-                pathType = PathType.LINEAR
-                isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
-                displayName = "Batched lines"
-            }
+            val attrs = ShapeAttributes()
+            attrs.outlineColor.set(1.0f, 1.0f, 0.0f, 1.0f)
+            attrs.outlineWidth = 3f
+            // Define the shape attributes used for highlighted "highways"
+            val highlightAttrs = ShapeAttributes()
+            highlightAttrs.outlineColor.set(1.0f, 0.0f, 0.0f, 1.0f)
+            highlightAttrs.outlineWidth = 7f
 
             val outlineColor = Color(1.0f, 1.0f, 0.0f, 1.0f)
             val outlineWidth = 3f
@@ -206,11 +207,18 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                             positions.add(fromDegrees(xy[1].toDouble(), xy[0].toDouble(), 0.0))
                         }
 
-                        linesBatch.addPath(StaticPathData(positions, outlineColor, outlineWidth, highlightColor, highlightWidth, attributes))
+                        val path = Path(positions, attrs)
+                        path.highlightAttributes = highlightAttrs
+                        path.altitudeMode = AltitudeMode.CLAMP_TO_GROUND
+                        path.pathType = PathType.LINEAR
+                        path.isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
+                        path.displayName = attributes
+
+                        // Add the Path object to the RenderableLayer on the UI Thread (see onProgressUpdate)
+                        publishProgress(path)
                         numHighwaysCreated++
                     }
                 }
-                publishProgress(linesBatch)
             } catch (e: IOException) {
                 log(Logger.ERROR, "Exception attempting to read/parse world_highways file.")
             }
@@ -366,9 +374,8 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                         if (message.isNotEmpty()) message.append(", ")
                         message.append((pickedObject as Renderable).displayName)
                     }
-                    if (pickedObject.isHighlighted && pickedObject is StaticPathData) {
-                        if (message.isNotEmpty()) message.append(", ")
-                        message.append(pickedObject.displayName)
+                    if (pickedObject is Path) {
+                        pickedObject.isDirty = true
                     }
                 }
             }

@@ -41,6 +41,8 @@ open class Path @JvmOverloads constructor(
     private val prevPoint = Vec3()
     private val texCoordMatrix = Matrix3()
     private val intermediateLocation = Location()
+    var isDirty = false
+    var vertexCount = 0
 
     companion object {
         protected const val VERTEX_STRIDE = 10
@@ -52,16 +54,24 @@ open class Path @JvmOverloads constructor(
         protected fun nextCacheKey() = Any()
     }
 
+    fun canBeBatched(rc : RenderContext) : Boolean {
+        super.determineActiveAttributes(rc)
+        return (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null && activeAttributes.isDepthTest && activeAttributes.isDepthWrite
+    }
+
     override fun reset() {
         super.reset()
         vertexArray = FloatArray(0)
         interiorElements.clear()
         outlineElements.clear()
         verticalElements.clear()
+        vertexCount = 0
+        isDirty = true
     }
 
     override fun makeDrawable(rc: RenderContext) {
         if (positions.size < 2) return // nothing to draw
+        if (canBeBatched(rc)) return
 
         if (mustAssembleGeometry(rc)) {
             assembleGeometry(rc)
@@ -167,6 +177,8 @@ open class Path @JvmOverloads constructor(
         // Enqueue the drawable for processing on the OpenGL thread.
         if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
         else rc.offerShapeDrawable(drawable, cameraDistance)
+
+        isDirty = false
     }
 
     protected open fun mustAssembleGeometry(rc: RenderContext) = vertexArray.isEmpty()
