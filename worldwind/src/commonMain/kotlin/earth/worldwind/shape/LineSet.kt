@@ -13,7 +13,7 @@ import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.shape.PathType.*
 import earth.worldwind.util.kgl.*
 
-open class LinesBatch(private val isSurfaceShape : Boolean): Boundable {
+open class LineSet(private val isSurfaceShape : Boolean): Boundable {
 
     protected var vertexArray = FloatArray(0)
     protected var colorArray = IntArray(0)

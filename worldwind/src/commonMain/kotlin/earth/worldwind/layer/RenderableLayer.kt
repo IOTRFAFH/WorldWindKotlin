@@ -2,7 +2,7 @@ package earth.worldwind.layer
 
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
-import earth.worldwind.shape.LinesBatch
+import earth.worldwind.render.BatchedLines
 import earth.worldwind.shape.Path
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
@@ -12,48 +12,8 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
 
-    private class LineBatchesContainer(val isSurfaceShape : Boolean) {
-        private val batches = mutableListOf<LinesBatch>()
-        private val freeBatches =
-            mutableListOf<LinesBatch>() // duplicate batches that aren't full here
-        private val pathToBatch = mutableMapOf<Path, LinesBatch>()
-
-        fun addPath(path: Path) {
-            if (freeBatches.isEmpty()) {
-                val newBatch = LinesBatch(isSurfaceShape)
-                newBatch.addPath(path)
-                pathToBatch[path] = newBatch
-
-                batches.add(newBatch)
-                freeBatches.add(newBatch)
-            } else {
-                val freeBatch = freeBatches[0]
-                freeBatch.addPath(path)
-                pathToBatch[path] = freeBatch
-
-                if (freeBatch.isFull()) freeBatches.remove(freeBatch)
-            }
-        }
-
-        fun removePath(path: Path) {
-            val batch = pathToBatch[path] ?: return
-            if (batch.removePath(path) && !freeBatches.contains(batch)) freeBatches.add(batch)
-            pathToBatch.remove(path)
-        }
-
-        fun containsPath(path : Path) : Boolean {
-            return pathToBatch[path] != null
-        }
-
-        fun render(rc: RenderContext) {
-            for (batch in batches) {
-                batch.render(rc)
-            }
-        }
-    }
-
-    private val surfaceLinesBatch = LineBatchesContainer(true)
-    private val globeLinesBatch = LineBatchesContainer(false)
+    private val surfaceLinesBatch = BatchedLines(true)
+    private val globeLinesBatch = BatchedLines(false)
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
