@@ -41,8 +41,10 @@ open class DrawableShape protected constructor(): Drawable {
         // Use the draw context's modelview projection matrix, transformed to shape local coordinates.
         if (drawState.depthOffset != 0.0) {
             mvpMatrix.copy(dc.projection).offsetProjectionDepth(drawState.depthOffset)
+            program.loadClipDistance((mvpMatrix.m[11] / (mvpMatrix.m[10] - 1.0)).toFloat() )
             mvpMatrix.multiplyByMatrix(dc.modelview)
         } else {
+            program.loadClipDistance((dc.projection.m[11] / (dc.projection.m[10] - 1.0f)).toFloat() )
             mvpMatrix.copy(dc.modelviewProjection)
         }
         mvpMatrix.multiplyByTranslation(

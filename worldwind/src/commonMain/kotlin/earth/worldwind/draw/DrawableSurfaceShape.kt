@@ -120,6 +120,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                 -terrainSector.minLatitude.inDegrees,
                 0.0
             )
+            program.loadClipDistance((textureMvpMatrix.m[11] / (textureMvpMatrix.m[10] - 1.0)).toFloat() )
             for (element in scratchList) {
                 // Get the shape.
                 val shape = element as DrawableSurfaceShape
@@ -216,6 +217,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             mvpMatrix.copy(dc.modelviewProjection)
             mvpMatrix.multiplyByTranslation(terrainOrigin.x, terrainOrigin.y, terrainOrigin.z)
             program.loadModelviewProjection(mvpMatrix)
+            program.loadClipDistance((dc.projection.m[11] / (dc.projection.m[10] - 1.0)).toFloat() )
 
             // Draw the terrain as triangles.
             terrain.drawTriangles(dc)
