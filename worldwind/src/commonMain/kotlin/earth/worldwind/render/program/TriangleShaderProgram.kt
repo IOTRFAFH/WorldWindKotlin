@@ -12,6 +12,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             uniform mat4 mvpMatrix;
             uniform float lineWidth;
             uniform float invMiterLengthCutoff;
+            uniform float clipDistance;
             uniform vec2 screen;
             uniform bool enableTexture;
             uniform bool enableOneVertexMode;
@@ -34,6 +35,13 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
                     vec4 pointBScreen = mvpMatrix * vec4(pointB.xyz, 1);
                     vec4 pointCScreen = mvpMatrix * vec4(pointC.xyz, 1);
                     float corner = pointB.w;
+                    
+                    if(pointAScreen.w < clipDistance) {
+                        pointAScreen = mix(pointAScreen, pointBScreen, (clipDistance - pointAScreen.w)/(pointBScreen.w - pointAScreen.w));
+                    }
+                    if(pointCScreen.w < clipDistance) {
+                        pointCScreen = mix(pointCScreen, pointBScreen, (clipDistance - pointCScreen.w)/(pointBScreen.w - pointCScreen.w));
+                    }
                     
                     pointAScreen = pointAScreen / pointAScreen.w;
                     pointBScreen = pointBScreen / pointBScreen.w;
@@ -107,6 +115,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected var opacity = 1.0f
     protected var lineWidth = 1.0f
     protected var invMiterLengthCutoff = 1.0f
+    protected var clipDistance = 0.0f
     protected var screenX = 0.0f
     protected var screenY = 0.0f
 
@@ -115,6 +124,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected var opacityId = KglUniformLocation.NONE
     protected var lineWidthId = KglUniformLocation.NONE
     protected var invMiterLengthCutoffId = KglUniformLocation.NONE
+    protected var clipDistanceId = KglUniformLocation.NONE
     protected var screenId = KglUniformLocation.NONE
     protected var enablePickModeId = KglUniformLocation.NONE
     protected var enableTextureId = KglUniformLocation.NONE
@@ -138,6 +148,8 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         gl.uniform1f(lineWidthId, lineWidth)
         invMiterLengthCutoffId = gl.getUniformLocation(program, "invMiterLengthCutoff")
         gl.uniform1f(invMiterLengthCutoffId, invMiterLengthCutoff)
+        clipDistanceId = gl.getUniformLocation(program, "clipDistance")
+        gl.uniform1f(clipDistanceId, clipDistance)
         screenId = gl.getUniformLocation(program, "screen")
         gl.uniform2f(screenId, screenX, screenY)
 
@@ -212,6 +224,13 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         if (this.invMiterLengthCutoff != 1.0f / miterLengthCutoff) {
             this.invMiterLengthCutoff = 1.0f / miterLengthCutoff
             gl.uniform1f(invMiterLengthCutoffId, invMiterLengthCutoff)
+        }
+    }
+
+    fun loadClipDistance(clipDistance: Float) {
+        if (this.clipDistance != clipDistance) {
+            this.clipDistance = clipDistance
+            gl.uniform1f(clipDistanceId, clipDistance)
         }
     }
 
