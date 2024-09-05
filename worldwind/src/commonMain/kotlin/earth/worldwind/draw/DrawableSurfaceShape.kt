@@ -133,6 +133,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
                     shape.drawState.vertexOrigin.z
                 )
                 program.loadModelviewProjection(mvpMatrix)
+                program.loadPickColorOffset(shape.drawState.colorOffset)
 
                 // Draw the specified primitives to the framebuffer texture.
                 for (primIdx in 0 until shape.drawState.primCount) {
@@ -189,6 +190,7 @@ open class DrawableSurfaceShape protected constructor(): Drawable {
             program.loadTexCoordMatrix(identityMatrix3)
             program.loadColor(color)
             program.loadOpacity(opacity)
+            program.loadPickColorOffset(Color(0.0f,0.0f,0.0f,0.0f))
 
             // Use the draw context's modelview projection matrix, transformed to terrain local coordinates.
             val terrainOrigin = terrain.vertexOrigin

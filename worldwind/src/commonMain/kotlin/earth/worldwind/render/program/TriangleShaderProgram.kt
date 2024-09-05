@@ -18,6 +18,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             uniform bool enableVertexColorAndWidth;
             uniform mat3 texCoordMatrix;
             uniform vec4 color;
+            uniform vec4 сolorOffset;
             
             attribute vec4 pointA;
             attribute vec4 pointB;
@@ -81,6 +82,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
                 }
                    
                 outVertexColor = enableVertexColorAndWidth ? vertexColor : color;
+                outVertexColor += сolorOffset;
             }
         """.trimIndent(),
         """
@@ -119,6 +121,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected val mvpMatrix = Matrix4()
     protected val texCoordMatrix = Matrix3()
     protected val color = Color()
+    protected val colorOffset = Color(0.0f,0.0f,0.0f,0.0f)
     protected var opacity = 1.0f
     protected var lineWidth = 1.0f
     protected var invMiterLengthCutoff = 1.0f
@@ -127,6 +130,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
 
     protected var mvpMatrixId = KglUniformLocation.NONE
     protected var colorId = KglUniformLocation.NONE
+    protected var colorOffsetId = KglUniformLocation.NONE
     protected var opacityId = KglUniformLocation.NONE
     protected var lineWidthId = KglUniformLocation.NONE
     protected var invMiterLengthCutoffId = KglUniformLocation.NONE
@@ -147,6 +151,8 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         colorId = gl.getUniformLocation(program, "color")
         val alpha = color.alpha
         gl.uniform4f(colorId, color.red * alpha, color.green * alpha, color.blue * alpha, alpha)
+        colorOffsetId = gl.getUniformLocation(program, "сolorOffset")
+        gl.uniform4f(colorOffsetId, colorOffset.red, colorOffset.green, colorOffset.blue, colorOffset.alpha)
 
         opacityId = gl.getUniformLocation(program, "opacity")
         gl.uniform1f(opacityId, opacity)
@@ -215,6 +221,13 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             this.color.copy(color)
             val alpha = color.alpha
             gl.uniform4f(colorId, color.red * alpha, color.green * alpha, color.blue * alpha, alpha)
+        }
+    }
+
+    fun loadPickColorOffset(colorOffset: Color) {
+        if (this.colorOffset != colorOffset) {
+            this.colorOffset.copy(colorOffset)
+            gl.uniform4f(colorOffsetId, colorOffset.red, colorOffset.green, colorOffset.blue, colorOffset.alpha)
         }
     }
 

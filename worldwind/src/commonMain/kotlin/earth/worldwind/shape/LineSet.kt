@@ -92,17 +92,18 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
         if (pathCount == 0) return  // nothing to draw
 
         var assemblePositions = vertexArray.isEmpty()
+        val pickColorOffset = rc.reservePickedObjectIdRange(pathCount)
         for (idx in 0 until pathCount ) {
+            rc.nextPickedObjectId()
             val path = paths[idx] ?: break
             if (path.positions.isEmpty()) continue
 
             assemblePositions = assemblePositions || path.forceRecreateBatch
             path.forceRecreateBatch = false
 
-            path.pickedObjectId = rc.nextPickedObjectId(path.pickedObjectIdKey) // update cache each frame
-            PickedObject.identifierToUniqueColor(path.pickedObjectId, path.pickColor)
-
-            if(rc.isPickMode) rc.offerPickedObject(PickedObject.fromRenderable(path.pickedObjectId, path, rc.currentLayer))
+            if(rc.isPickMode) {
+                rc.offerPickedObject(PickedObject.fromRenderable(pickColorOffset + idx, path, rc.currentLayer))
+            }
         }
 
         // reset caches depending on flags
@@ -136,6 +137,12 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
                 rc, vertexArray, vertexArray.size,
                 VERTEX_STRIDE, vertexOrigin
             )
+        }
+
+        // Convert pickColorOffset to colorOffset
+        if(rc.isPickMode) {
+            PickedObject.identifierToUniqueColor(pickColorOffset, drawState.colorOffset)
+            drawState.colorOffset.alpha = 0.0f
         }
 
         // Use the basic GLSL program to draw the shape.
@@ -242,11 +249,15 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
             }
 
             if(assembleColor || assemblePickColor || assembleWidth) {
+                val outlineColorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
+                val outlineWidth = path.activeAttributes.outlineWidth + if(isSurfaceShape) 0.5f else 0f
+                val pickColor = Color(0.0f,0.0f,0.0f,0.0f)
+                PickedObject.identifierToUniqueColor(idx, pickColor)
+                val pickColorInt = pickColor.toColorIntRGBA()
                 for (vertexIdx in 0 until 2 * path.vertexCount) {
-                   // PickedObject.identifierToUniqueColor(path.pickedObjectId, path.pickColor)
-                    if (assembleColor) colorArray[tempVertexIndex] = path.activeAttributes.outlineColor.toColorIntRGBA()
-                    if (assemblePickColor) pickColorArray[tempVertexIndex] = path.pickColor.toColorIntRGBA()
-                    if (assembleWidth) widthArray[tempVertexIndex] = path.activeAttributes.outlineWidth + if(isSurfaceShape) 0.5f else 0f
+                    if (assembleColor) colorArray[tempVertexIndex] = outlineColorInt
+                    if (assembleWidth) widthArray[tempVertexIndex] = outlineWidth
+                    if (assemblePickColor) pickColorArray[tempVertexIndex] = pickColorInt
                     ++tempVertexIndex
                 }
             }

@@ -83,6 +83,7 @@ open class DrawShapeState internal constructor() {
     var isLine = false
     var isStatic = false
     val vertexState = VertexState()
+    val colorOffset = Color(0f, 0f, 0f, 0f)
     protected val color = Color()
     protected var opacity = 1.0f
     protected var lineWidth = 1f
@@ -103,6 +104,7 @@ open class DrawShapeState internal constructor() {
         isStatic = false
         depthOffset = 0.0
         color.set(1f, 1f, 1f, 1f)
+        colorOffset.set(0f, 0f, 0f, 0f)
         opacity = 1.0f
         lineWidth = 1f
         texture = null
