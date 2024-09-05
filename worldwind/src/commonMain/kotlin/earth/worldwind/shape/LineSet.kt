@@ -141,8 +141,7 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
 
         // Convert pickColorOffset to colorOffset
         if(rc.isPickMode) {
-            PickedObject.identifierToUniqueColor(pickColorOffset, drawState.colorOffset)
-            drawState.colorOffset.alpha = 0.0f
+            drawState.pickIdOffset = pickColorOffset
         }
 
         // Use the basic GLSL program to draw the shape.

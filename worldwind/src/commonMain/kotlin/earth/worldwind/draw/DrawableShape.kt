@@ -53,7 +53,7 @@ open class DrawableShape protected constructor(): Drawable {
             drawState.vertexOrigin.z
         )
         program.loadModelviewProjection(mvpMatrix)
-        program.loadPickColorOffset(drawState.colorOffset)
+        program.loadPickIdOffset(drawState.pickIdOffset)
 
         // Disable triangle back face culling if requested.
         if (!drawState.enableCullFace) dc.gl.disable(GL_CULL_FACE)

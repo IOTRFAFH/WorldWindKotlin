@@ -9,6 +9,8 @@ import earth.worldwind.util.kgl.KglUniformLocation
 open class TriangleShaderProgram : AbstractShaderProgram() {
     override var programSources = arrayOf(
         """
+            #version 320 es
+            
             uniform mat4 mvpMatrix;
             uniform float lineWidth;
             uniform float invMiterLengthCutoff;
@@ -18,17 +20,18 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             uniform bool enableVertexColorAndWidth;
             uniform mat3 texCoordMatrix;
             uniform vec4 color;
-            uniform vec4 сolorOffset;
+            uniform int pickIdOffset;
+            uniform bool enablePickMode;
             
-            attribute vec4 pointA;
-            attribute vec4 pointB;
-            attribute vec4 pointC;
-            attribute vec2 vertexTexCoord;
-            attribute vec4 vertexColor;
-            attribute float vertexLineWidth;
+            in vec4 pointA;
+            in vec4 pointB;
+            in vec4 pointC;
+            in vec2 vertexTexCoord;
+            in vec4 vertexColor;
+            in float vertexLineWidth;
             
-            varying vec2 texCoord;
-            varying vec4 outVertexColor;
+            out vec2 texCoord;
+            out vec4 outVertexColor;
             
             void main() {
                 if (!enableLinesMode) {
@@ -82,10 +85,20 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
                 }
                    
                 outVertexColor = enableVertexColorAndWidth ? vertexColor : color;
-                outVertexColor += сolorOffset;
+                if(enablePickMode && pickIdOffset != 0) {
+                    ivec3 colorAsInt = ivec3(int(outVertexColor.r * 255.0), int(outVertexColor.g * 255.0), int(outVertexColor.b * 255.0));
+                    int colorId = (colorAsInt.r << 16 | colorAsInt.g << 8 | colorAsInt.b);
+                    int resultId = pickIdOffset + colorId;
+                    
+                    outVertexColor.r = float((resultId >> 16) & 0xFF) / 255.0;
+                    outVertexColor.g = float((resultId >> 8) & 0xFF) / 255.0;
+                    outVertexColor.b = float(resultId & 0xFF) / 255.0;
+                    outVertexColor.a = 1.0;
+                }
             }
         """.trimIndent(),
         """
+            #version 320 es
             precision mediump float;
             
             uniform bool enablePickMode;
@@ -94,20 +107,22 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             uniform float opacity;
             uniform sampler2D texSampler;
             
-            varying vec2 texCoord;
-            varying vec4 outVertexColor;
+            in vec2 texCoord;
+            in vec4 outVertexColor;
+            
+            out vec4 fragColor;
             
             void main() {
                 if (enablePickMode && enableTexture) {
                     /* Modulate the RGBA color with the 2D texture's Alpha component (rounded to 0.0 or 1.0). */
-                    float texMask = floor(texture2D(texSampler, texCoord).a + 0.5);
-                    gl_FragColor = outVertexColor * texMask;
+                    float texMask = floor(texture(texSampler, texCoord).a + 0.5);
+                    fragColor = outVertexColor * texMask;
                 } else if (!enablePickMode && enableTexture) {
                     /* Modulate the RGBA color with the 2D texture's RGBA color. */
-                    gl_FragColor = outVertexColor * texture2D(texSampler, texCoord) * opacity;
+                    fragColor = outVertexColor * texture(texSampler, texCoord) * opacity;
                 } else {
                     /* Return the RGBA color as-is. */
-                    gl_FragColor = outVertexColor * opacity;
+                    fragColor = outVertexColor * opacity;
                 }
             }
         """.trimIndent()
@@ -121,7 +136,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
     protected val mvpMatrix = Matrix4()
     protected val texCoordMatrix = Matrix3()
     protected val color = Color()
-    protected val colorOffset = Color(0.0f,0.0f,0.0f,0.0f)
+    protected var pickIdOffset = 0
     protected var opacity = 1.0f
     protected var lineWidth = 1.0f
     protected var invMiterLengthCutoff = 1.0f
@@ -130,7 +145,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
 
     protected var mvpMatrixId = KglUniformLocation.NONE
     protected var colorId = KglUniformLocation.NONE
-    protected var colorOffsetId = KglUniformLocation.NONE
+    protected var pickIdOffsetId = KglUniformLocation.NONE
     protected var opacityId = KglUniformLocation.NONE
     protected var lineWidthId = KglUniformLocation.NONE
     protected var invMiterLengthCutoffId = KglUniformLocation.NONE
@@ -151,8 +166,8 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         colorId = gl.getUniformLocation(program, "color")
         val alpha = color.alpha
         gl.uniform4f(colorId, color.red * alpha, color.green * alpha, color.blue * alpha, alpha)
-        colorOffsetId = gl.getUniformLocation(program, "сolorOffset")
-        gl.uniform4f(colorOffsetId, colorOffset.red, colorOffset.green, colorOffset.blue, colorOffset.alpha)
+        pickIdOffsetId = gl.getUniformLocation(program, "pickIdOffset")
+        gl.uniform1i(pickIdOffsetId, pickIdOffset)
 
         opacityId = gl.getUniformLocation(program, "opacity")
         gl.uniform1f(opacityId, opacity)
@@ -224,10 +239,10 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
         }
     }
 
-    fun loadPickColorOffset(colorOffset: Color) {
-        if (this.colorOffset != colorOffset) {
-            this.colorOffset.copy(colorOffset)
-            gl.uniform4f(colorOffsetId, colorOffset.red, colorOffset.green, colorOffset.blue, colorOffset.alpha)
+    fun loadPickIdOffset(pickIdOffset: Int) {
+        if (this.pickIdOffset != pickIdOffset) {
+            this.pickIdOffset = pickIdOffset
+            gl.uniform1i(pickIdOffsetId, pickIdOffset)
         }
     }
 
