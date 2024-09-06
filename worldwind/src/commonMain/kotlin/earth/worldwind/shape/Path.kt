@@ -42,8 +42,6 @@ open class Path @JvmOverloads constructor(
     private val prevPoint = Vec3()
     private val texCoordMatrix = Matrix3()
     private val intermediateLocation = Location()
-    var forceRecreateBatch = false
-    var allowBatching = true
     var vertexCount = 0
 
     companion object {
@@ -56,16 +54,9 @@ open class Path @JvmOverloads constructor(
         protected fun nextCacheKey() = Any()
     }
 
-    fun updateAttributes(rc: RenderContext) {
-        determineActiveAttributes(rc)
-        isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
-    }
-
-    fun canBeBatched(rc : RenderContext) : Boolean {
+    override fun canBeBatched(rc : RenderContext) : Boolean {
         return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null
     }
-
-    fun forceReset() { reset() }
 
     override fun reset() {
         super.reset()
@@ -74,7 +65,6 @@ open class Path @JvmOverloads constructor(
         outlineElements.clear()
         verticalElements.clear()
         vertexCount = 0
-        forceRecreateBatch = true
     }
 
     override fun makeDrawable(rc: RenderContext) {
@@ -184,8 +174,6 @@ open class Path @JvmOverloads constructor(
         // Enqueue the drawable for processing on the OpenGL thread.
         if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
         else rc.offerShapeDrawable(drawable, cameraDistance)
-
-        forceRecreateBatch = false
     }
 
     protected open fun mustAssembleGeometry(rc: RenderContext) = vertexArray.isEmpty()

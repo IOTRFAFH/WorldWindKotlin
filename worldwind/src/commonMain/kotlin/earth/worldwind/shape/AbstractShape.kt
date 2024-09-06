@@ -43,6 +43,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         }
     override var highlightAttributes: ShapeAttributes? = null
     override var isHighlighted = false
+        set(value) {
+            field = value
+            forceRecreateBatch = true
+        }
     var maximumIntermediatePoints = 10
     lateinit var activeAttributes: ShapeAttributes
         protected set
@@ -54,6 +58,20 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected val boundingSector = Sector()
     protected val boundingBox = BoundingBox()
     private val scratchPoint = Vec3()
+    open var allowBatching = false
+    var forceRecreateBatch = false
+
+    open fun canBeBatched(rc : RenderContext) : Boolean {
+        return allowBatching
+    }
+
+    fun updateAttributes(rc: RenderContext) {
+        // Select the currently active attributes. Don't render anything if the attributes are unspecified.
+        determineActiveAttributes(rc)
+
+        // Determine whether the shape geometry must be assembled as Cartesian geometry or as geographic geometry.
+        isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
+    }
 
     override fun doRender(rc: RenderContext) {
         checkGlobeState(rc)
@@ -62,8 +80,8 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         // Don't render anything if the shape is not visible.
         if (!intersectsFrustum(rc)) return
 
-        // Select the currently active attributes. Don't render anything if the attributes are unspecified.
-        determineActiveAttributes(rc)
+        // Update attributes that are dependent on render context.
+        updateAttributes(rc)
 
         // Keep track of the drawable count to determine whether this shape has enqueued drawables.
         val drawableCount = rc.drawableCount
@@ -72,9 +90,6 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
             PickedObject.identifierToUniqueColor(pickedObjectId, pickColor)
         }
 
-        // Determine whether the shape geometry must be assembled as Cartesian geometry or as geographic geometry.
-        isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
-
         // Enqueue drawables for processing on the OpenGL thread.
         makeDrawable(rc)
 
@@ -82,6 +97,9 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         if (rc.isPickMode && rc.drawableCount != drawableCount) {
             rc.offerPickedObject(PickedObject.fromRenderable(pickedObjectId, this, rc.currentLayer))
         }
+
+        // Set to false if it was set to true as doRender is only called for nonBatched shapes.
+        forceRecreateBatch = false
     }
 
     /**
@@ -147,9 +165,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         }
     }
 
-    protected open fun reset() {
+    open fun reset() {
         boundingBox.setToUnitBox()
         boundingSector.setEmpty()
+        forceRecreateBatch = true
     }
 
     protected abstract fun makeDrawable(rc: RenderContext)

@@ -208,6 +208,7 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                         path.pathType = PathType.LINEAR
                         path.isFollowTerrain = true // essential for preventing long segments from intercepting ellipsoid.
                         path.displayName = attributes
+                        path.allowBatching = true
 
                         // Add the Path object to the RenderableLayer on the UI Thread (see onProgressUpdate)
                         publishProgress(path)
@@ -368,9 +369,6 @@ open class PathsPolygonsLabelsActivity: GeneralGlobeActivity() {
                     if (pickedObject.isHighlighted) {
                         if (message.isNotEmpty()) message.append(", ")
                         message.append((pickedObject as Renderable).displayName)
-                    }
-                    if (pickedObject is Path) {
-                        pickedObject.forceRecreateBatch = true
                     }
                 }
             }

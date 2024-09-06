@@ -116,7 +116,6 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         var assemblePositions = vertexArray.isEmpty()
         val pickColorOffset = rc.reservePickedObjectIdRange(pathCount)
         for (idx in 0 until pathCount ) {
-            rc.nextPickedObjectId()
             val path = paths[idx] ?: break
             if (path.positions.isEmpty()) continue
 

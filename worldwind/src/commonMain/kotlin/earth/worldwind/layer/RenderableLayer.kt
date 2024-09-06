@@ -103,7 +103,12 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return removed
     }
 
-    fun clearRenderables() { renderables.clear() }
+    fun clearRenderables() {
+        renderables.clear()
+        batchedLines.clear()
+        attributesToBatchedLines.clear()
+        pathToBatchedLines.clear()
+    }
 
     private fun addPathToBatch(path: Path) {
         val pathAttributes = LineSetAttributes(path)
@@ -145,7 +150,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                     val pathWasBatched = pathToBatchedLines[renderable] != null
                     if (pathCanBeBatched) {
                         if (!pathWasBatched) {
-                            renderable.forceReset()
+                            renderable.reset()
                             addPathToBatch(renderable)
                         } else if (pathWasBatched) {
                             updatePath(renderable)
