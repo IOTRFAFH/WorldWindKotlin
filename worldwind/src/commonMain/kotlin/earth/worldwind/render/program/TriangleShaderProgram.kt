@@ -9,7 +9,7 @@ import earth.worldwind.util.kgl.KglUniformLocation
 open class TriangleShaderProgram : AbstractShaderProgram() {
     override var programSources = arrayOf(
         """
-            #version 320 es
+            #version 300 es
             
             uniform mat4 mvpMatrix;
             uniform float lineWidth;
@@ -98,7 +98,7 @@ open class TriangleShaderProgram : AbstractShaderProgram() {
             }
         """.trimIndent(),
         """
-            #version 320 es
+            #version 300 es
             precision mediump float;
             
             uniform bool enablePickMode;
