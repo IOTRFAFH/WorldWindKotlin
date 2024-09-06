@@ -1,9 +1,10 @@
 package earth.worldwind.render
 
 import earth.worldwind.shape.LineSet
+import earth.worldwind.shape.LineSetAttributes
 import earth.worldwind.shape.Path
 
-class BatchedLines(val isSurfaceShape : Boolean) {
+class BatchedLines(private val attributes: LineSetAttributes) {
     private val batches = mutableListOf<LineSet>()
     private val freeBatches =
         mutableListOf<LineSet>() // duplicate batches that aren't full here
@@ -11,7 +12,7 @@ class BatchedLines(val isSurfaceShape : Boolean) {
 
     fun addPath(path: Path) {
         if (freeBatches.isEmpty()) {
-            val newBatch = LineSet(isSurfaceShape)
+            val newBatch = LineSet(attributes)
             newBatch.addPath(path)
             pathToBatch[path] = newBatch
 
@@ -32,13 +33,13 @@ class BatchedLines(val isSurfaceShape : Boolean) {
         pathToBatch.remove(path)
     }
 
-    fun containsPath(path : Path) : Boolean {
-        return pathToBatch[path] != null
-    }
-
     fun render(rc: RenderContext) {
         for (batch in batches) {
             batch.render(rc)
         }
+    }
+
+    fun isAttributesEqual(other : LineSetAttributes) : Boolean{
+        return attributes == other
     }
 }

@@ -56,10 +56,13 @@ open class Path @JvmOverloads constructor(
         protected fun nextCacheKey() = Any()
     }
 
-    fun canBeBatched(rc : RenderContext) : Boolean {
+    fun updateAttributes(rc: RenderContext) {
         determineActiveAttributes(rc)
         isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain
-        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null && activeAttributes.isDepthTest && activeAttributes.isDepthWrite
+    }
+
+    fun canBeBatched(rc : RenderContext) : Boolean {
+        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null
     }
 
     fun forceReset() { reset() }

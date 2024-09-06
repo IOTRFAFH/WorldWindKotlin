@@ -3,6 +3,7 @@ package earth.worldwind.layer
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
 import earth.worldwind.render.BatchedLines
+import earth.worldwind.shape.LineSetAttributes
 import earth.worldwind.shape.Path
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
@@ -12,8 +13,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
 
-    private val surfaceLinesBatch = BatchedLines(true)
-    private val globeLinesBatch = BatchedLines(false)
+    private val batchedLines = mutableListOf<BatchedLines>()
+    private val attributesToBatchedLines = mutableMapOf<LineSetAttributes, BatchedLines>()
+    private val pathToBatchedLines = mutableMapOf<Path, BatchedLines>()
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
@@ -104,25 +106,27 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     fun clearRenderables() { renderables.clear() }
 
     private fun addPathToBatch(path: Path) {
-        if (path.isSurfaceShape) {
-            surfaceLinesBatch.addPath(path)
-        } else {
-            globeLinesBatch.addPath(path)
+        val pathAttributes = LineSetAttributes(path)
+        var batch = attributesToBatchedLines[pathAttributes]
+        if(batch == null) {
+            batch = BatchedLines(pathAttributes)
+            batchedLines.add(batch)
+            attributesToBatchedLines[pathAttributes] = batch
         }
+        batch.addPath(path)
+        pathToBatchedLines[path] = batch
     }
 
     private fun removePathFromBatch(path : Path) {
-        if (surfaceLinesBatch.containsPath(path)) {
-            surfaceLinesBatch.removePath(path)
-        } else if (globeLinesBatch.containsPath(path)) {
-            globeLinesBatch.removePath(path)
-        }
+        val currentBatch = pathToBatchedLines[path] ?: return
+        currentBatch.removePath(path)
+        pathToBatchedLines.remove(path)
     }
 
     private fun updatePath(path: Path) {
-        val changeBatch = surfaceLinesBatch.containsPath(path) && !path.isSurfaceShape
-                || globeLinesBatch.containsPath(path) && path.isSurfaceShape
-        if (changeBatch) {
+        val pathAttributes = LineSetAttributes(path)
+        val currentBatch = pathToBatchedLines[path] ?: return
+        if (!currentBatch.isAttributesEqual(pathAttributes)) {
             removePathFromBatch(path)
             addPathToBatch(path)
         }
@@ -136,11 +140,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             try {
                 // Here we're batching Paths
                 if(renderable is Path) {
+                    renderable.updateAttributes(rc)
                     val pathCanBeBatched = renderable.canBeBatched(rc)
-                    val pathWasBatched =
-                        surfaceLinesBatch.containsPath(renderable) || globeLinesBatch.containsPath(
-                            renderable
-                        )
+                    val pathWasBatched = pathToBatchedLines[renderable] != null
                     if (pathCanBeBatched) {
                         if (!pathWasBatched) {
                             renderable.forceReset()
@@ -163,19 +165,13 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             }
         }
         try {
-            surfaceLinesBatch.render(rc)
+            for (batch in batchedLines) {
+                batch.render(rc)
+            }
         } catch (e: Exception) {
             logMessage(
                 ERROR, "RenderableLayer", "doRender",
                 "Exception while rendering surfaceLinesBatch", e
-            )
-        }
-        try {
-            globeLinesBatch.render(rc)
-        } catch (e: Exception) {
-            logMessage(
-                ERROR, "RenderableLayer", "doRender",
-                "Exception while rendering shape globeLinesBatch", e
             )
         }
     }

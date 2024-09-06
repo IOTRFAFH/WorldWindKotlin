@@ -9,11 +9,33 @@ import earth.worldwind.geom.*
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
 import earth.worldwind.render.buffer.IntBufferObject
+import earth.worldwind.render.image.ImageSource
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.shape.PathType.*
 import earth.worldwind.util.kgl.*
 
-open class LineSet(private val isSurfaceShape : Boolean): Boundable {
+open class LineSetAttributes(path : Path) {
+    val isSurfaceShape: Boolean = path.isSurfaceShape
+    val enableDepthTest: Boolean = path.activeAttributes.isDepthTest
+    val enableDepthWrite: Boolean = path.activeAttributes.isDepthWrite
+    val outlineImageSource: ImageSource? = path.activeAttributes.outlineImageSource
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is LineSetAttributes) return false
+        return this.isSurfaceShape == other.isSurfaceShape && this.enableDepthTest == other.enableDepthTest && this.enableDepthWrite == other.enableDepthWrite
+    }
+
+    override fun hashCode(): Int {
+        var result = isSurfaceShape.hashCode()
+        result = 31 * result + enableDepthTest.hashCode()
+        result = 31 * result + enableDepthWrite.hashCode()
+        result = 31 * result + (outlineImageSource?.hashCode() ?: 0)
+        return result
+    }
+}
+
+open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
     protected var vertexArray = FloatArray(0)
     protected var colorArray = IntArray(0)
@@ -122,7 +144,7 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
         val drawable: Drawable
         val drawState: DrawShapeState
         val cameraDistance: Double
-        if (isSurfaceShape) {
+        if (attributes.isSurfaceShape) {
             val pool = rc.getDrawablePool<DrawableSurfaceShape>()
             drawable = DrawableSurfaceShape.obtain(pool)
             drawState = drawable.drawState
@@ -184,11 +206,11 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
         drawState.isStatic = true
         drawState.vertexOrigin.copy(vertexOrigin)
         drawState.enableCullFace = false
-        drawState.enableDepthTest = true
-        drawState.enableDepthWrite = true
+        drawState.enableDepthTest = attributes.enableDepthTest
+        drawState.enableDepthWrite = attributes.enableDepthWrite
 
         // Enqueue the drawable for processing on the OpenGL thread.
-        if (isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
+        if (attributes.isSurfaceShape) rc.offerSurfaceDrawable(drawable, 0.0 /*zOrder*/)
         else rc.offerShapeDrawable(drawable, cameraDistance)
     }
 
@@ -249,7 +271,7 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
 
             if(assembleColor || assemblePickColor || assembleWidth) {
                 val outlineColorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
-                val outlineWidth = path.activeAttributes.outlineWidth + if(isSurfaceShape) 0.5f else 0f
+                val outlineWidth = path.activeAttributes.outlineWidth + if(attributes.isSurfaceShape) 0.5f else 0f
                 val pickColor = Color(0.0f,0.0f,0.0f,0.0f)
                 PickedObject.identifierToUniqueColor(idx, pickColor)
                 val pickColorInt = pickColor.toColorIntRGBA()
@@ -264,7 +286,7 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.
         if(assembleGeometry) {
-            if (isSurfaceShape) {
+            if (attributes.isSurfaceShape) {
                 boundingSector.setEmpty()
                 boundingSector.union(vertexArray, vertexIndex, VERTEX_STRIDE)
                 boundingSector.translate(vertexOrigin.y /*latitude*/, vertexOrigin.x /*longitude*/)
@@ -317,11 +339,11 @@ open class LineSet(private val isSurfaceShape : Boolean): Boundable {
         val vertex = (vertexIndex / VERTEX_STRIDE - 1) * 2
         val point = rc.geographicToCartesian(latitude, longitude, altitude, altitudeMode, point)
         if (vertexIndex == 0) {
-            if (isSurfaceShape) vertexOrigin.set(longitude.inDegrees, latitude.inDegrees, altitude)
+            if (attributes.isSurfaceShape) vertexOrigin.set(longitude.inDegrees, latitude.inDegrees, altitude)
             else vertexOrigin.copy(point)
         }
         prevPoint.copy(point)
-        if (isSurfaceShape) {
+        if (attributes.isSurfaceShape) {
             vertexArray[vertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (altitude - vertexOrigin.z).toFloat()
