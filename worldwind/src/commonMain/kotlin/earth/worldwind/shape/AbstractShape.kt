@@ -43,10 +43,6 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
         }
     override var highlightAttributes: ShapeAttributes? = null
     override var isHighlighted = false
-        set(value) {
-            field = value
-            forceRecreateBatch = true
-        }
     var maximumIntermediatePoints = 10
     lateinit var activeAttributes: ShapeAttributes
         protected set
@@ -58,7 +54,8 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected val boundingSector = Sector()
     protected val boundingBox = BoundingBox()
     private val scratchPoint = Vec3()
-    open var allowBatching = false
+    private var activeAttributesHash = 0
+    var allowBatching = false
     var forceRecreateBatch = false
 
     open fun canBeBatched(rc : RenderContext) : Boolean {
@@ -68,6 +65,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     fun updateAttributes(rc: RenderContext) {
         // Select the currently active attributes. Don't render anything if the attributes are unspecified.
         determineActiveAttributes(rc)
+
+        forceRecreateBatch = forceRecreateBatch || (activeAttributesHash != activeAttributes.hashCode())
+
+        activeAttributesHash = activeAttributes.hashCode()
 
         // Determine whether the shape geometry must be assembled as Cartesian geometry or as geographic geometry.
         isSurfaceShape = rc.globe.is2D || altitudeMode == AltitudeMode.CLAMP_TO_GROUND && isFollowTerrain

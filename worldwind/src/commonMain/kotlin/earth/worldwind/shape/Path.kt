@@ -55,7 +55,7 @@ open class Path @JvmOverloads constructor(
     }
 
     override fun canBeBatched(rc : RenderContext) : Boolean {
-        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.outlineImageSource == null && activeAttributes.interiorImageSource == null
+        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.interiorImageSource == null
     }
 
     override fun reset() {

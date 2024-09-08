@@ -9,7 +9,10 @@ import earth.worldwind.geom.*
 import earth.worldwind.render.*
 import earth.worldwind.render.buffer.FloatBufferObject
 import earth.worldwind.render.buffer.IntBufferObject
+import earth.worldwind.render.image.ImageOptions
 import earth.worldwind.render.image.ImageSource
+import earth.worldwind.render.image.ResamplingMode
+import earth.worldwind.render.image.WrapMode
 import earth.worldwind.render.program.TriangleShaderProgram
 import earth.worldwind.shape.PathType.*
 import earth.worldwind.util.kgl.*
@@ -51,9 +54,11 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
     protected lateinit var widthBufferKey: Any
     protected lateinit var elementBufferKey: Any
     protected val vertexOrigin = Vec3()
+    protected var texCoord1d = 0.0
     private val point = Vec3()
     private val prevPoint = Vec3()
     private val intermediateLocation = Location()
+    private val texCoordMatrix = Matrix3()
 
     override val boundingSector = Sector()
     override val boundingBox = BoundingBox()
@@ -61,8 +66,12 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
     companion object {
         protected const val MAX_PATHS = 256
-        protected const val VERTEX_STRIDE = 8
+        protected const val VERTEX_STRIDE = 10
         const val NEAR_ZERO_THRESHOLD = 1.0e-10
+        protected val defaultOutlineImageOptions = ImageOptions().apply {
+            resamplingMode = ResamplingMode.NEAREST_NEIGHBOR
+            wrapMode = WrapMode.REPEAT
+        }
 
         protected fun nextCacheKey() = Any()
     }
@@ -110,16 +119,23 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         outlineElements.clear()
     }
 
+    protected open fun computeRepeatingTexCoordTransform(texture: Texture, metersPerPixel: Double, result: Matrix3): Matrix3 {
+        val texCoordMatrix = result.setToIdentity()
+        texCoordMatrix.setScale(1.0 / (texture.width * metersPerPixel), 1.0 / (texture.height * metersPerPixel))
+        texCoordMatrix.multiplyByMatrix(texture.coordTransform)
+        return texCoordMatrix
+    }
+
     private fun makeDrawable(rc: RenderContext) {
         if (pathCount == 0) return  // nothing to draw
 
-        var assemblePositions = vertexArray.isEmpty()
+        var assembleBuffers = vertexArray.isEmpty()
         val pickColorOffset = rc.reservePickedObjectIdRange(pathCount)
         for (idx in 0 until pathCount ) {
             val path = paths[idx] ?: break
             if (path.positions.isEmpty()) continue
 
-            assemblePositions = assemblePositions || path.forceRecreateBatch
+            assembleBuffers = assembleBuffers || path.forceRecreateBatch
             path.forceRecreateBatch = false
 
             if(rc.isPickMode) {
@@ -128,16 +144,14 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         }
 
         // reset caches depending on flags
-        if (assemblePositions) {
+        if (assembleBuffers) {
+            assembleBuffers(rc)
             vertexBufferKey = nextCacheKey()
             elementBufferKey = nextCacheKey()
             colorBufferKey = nextCacheKey()
             pickColorBufferKey = nextCacheKey()
             widthBufferKey = nextCacheKey()
         }
-
-        // assemble buffer depending on flags
-        assembleBuffers(rc, assemblePositions, assemblePositions, assemblePositions, assemblePositions)
 
         // Obtain a drawable form the render context pool, and compute distance to the render camera.
         val drawable: Drawable
@@ -170,10 +184,10 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        drawState.vertexState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 16, 0) // pointA
-        drawState.vertexState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 16, 32) // pointB
-        drawState.vertexState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 16, 64) // pointC
-        drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 0,0) // texCoord
+        drawState.vertexState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 20, 0) // pointA
+        drawState.vertexState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 20, 40) // pointB
+        drawState.vertexState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 20, 80) // pointC
+        drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 20,56) // texCoord
 
         val colorBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
         val pickColorBuffer = rc.getBufferObject(pickColorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, pickColorArray) }
@@ -190,8 +204,15 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
             IntBufferObject(GL_ELEMENT_ARRAY_BUFFER, array)
         }
 
-        // Disable texturing
-        drawState.texture(null)
+        // Configure the drawable to use the outline texture when drawing the outline.
+        attributes.outlineImageSource?.let { outlineImageSource ->
+            rc.getTexture(outlineImageSource, defaultOutlineImageOptions)?.let { texture ->
+                val metersPerPixel = rc.pixelSizeAtDistance(cameraDistance)
+                computeRepeatingTexCoordTransform(texture, metersPerPixel, texCoordMatrix)
+                drawState.texture(texture)
+                drawState.texCoordMatrix(texCoordMatrix)
+            }
+        }
 
         // Configure the drawable to display the shape's extruded verticals.
         drawState.opacity(if (rc.isPickMode) 1f else rc.currentLayer.opacity)
@@ -213,10 +234,7 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         else rc.offerShapeDrawable(drawable, cameraDistance)
     }
 
-    protected open fun assembleBuffers(rc: RenderContext, assembleGeometry : Boolean, assembleColor : Boolean, assemblePickColor : Boolean, assembleWidth: Boolean) {
-        if(!(assembleGeometry || assembleColor || assemblePickColor || assembleWidth)) return
-
-
+    protected open fun assembleBuffers(rc: RenderContext) {
         // Determine the number of vertexes
         var vertexCount = 0
         for (idx in 0 until pathCount ) {
@@ -238,14 +256,12 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
         // Clear the shape's vertex array and element arrays. These arrays will accumulate values as the shapes's
         // geometry is assembled.
-        if(assembleGeometry) {
-            vertexIndex = 0
-            vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
-            outlineElements.clear()
-        }
-        if(assembleColor) colorArray = IntArray(vertexCount * 2)
-        if(assemblePickColor) pickColorArray = IntArray(vertexCount * 2)
-        if(assembleWidth) widthArray = FloatArray(vertexCount * 2)
+        vertexIndex = 0
+        vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
+        outlineElements.clear()
+        colorArray = IntArray(vertexCount * 2)
+        pickColorArray = IntArray(vertexCount * 2)
+        widthArray = FloatArray(vertexCount * 2)
 
         var tempVertexIndex = 0
         for (idx in 0 until pathCount ) {
@@ -253,48 +269,43 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
             val positions = path.positions
             if (positions.isEmpty()) continue  // no boundary positions to assemble
 
-            if(assembleGeometry) {
-                // Add the first vertex.
-                var begin = positions[0]
-                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, false)
-                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,false)
-                // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
-                for (vertexIdx in 1 until positions.size) {
-                    val end = positions[vertexIdx]
-                    addIntermediateVertices(rc, begin, end, path.maximumIntermediatePoints, path.pathType, path.altitudeMode)
-                    addVertex(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode,true)
-                    begin = end
-                }
-                addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,true)
+            // Add the first vertex.
+            var begin = positions[0]
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, false)
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,false)
+            // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
+            for (vertexIdx in 1 until positions.size) {
+                val end = positions[vertexIdx]
+                addIntermediateVertices(rc, begin, end, path.maximumIntermediatePoints, path.pathType, path.altitudeMode)
+                addVertex(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode,true)
+                begin = end
             }
+            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,true)
 
-            if(assembleColor || assemblePickColor || assembleWidth) {
-                val outlineColorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
-                val outlineWidth = path.activeAttributes.outlineWidth + if(attributes.isSurfaceShape) 0.5f else 0f
-                val pickColor = Color(0.0f,0.0f,0.0f,0.0f)
-                PickedObject.identifierToUniqueColor(idx, pickColor)
-                val pickColorInt = pickColor.toColorIntRGBA()
-                for (vertexIdx in 0 until 2 * path.vertexCount) {
-                    if (assembleColor) colorArray[tempVertexIndex] = outlineColorInt
-                    if (assembleWidth) widthArray[tempVertexIndex] = outlineWidth
-                    if (assemblePickColor) pickColorArray[tempVertexIndex] = pickColorInt
-                    ++tempVertexIndex
-                }
+            // Add colors and width to arrays
+            val outlineColorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
+            val outlineWidth = path.activeAttributes.outlineWidth + if(attributes.isSurfaceShape) 0.5f else 0f
+            val pickColor = Color(0.0f,0.0f,0.0f,0.0f)
+            PickedObject.identifierToUniqueColor(idx, pickColor)
+            val pickColorInt = pickColor.toColorIntRGBA()
+            for (vertexIdx in 0 until 2 * path.vertexCount) {
+                colorArray[tempVertexIndex] = outlineColorInt
+                widthArray[tempVertexIndex] = outlineWidth
+                pickColorArray[tempVertexIndex] = pickColorInt
+                ++tempVertexIndex
             }
         }
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.
-        if(assembleGeometry) {
-            if (attributes.isSurfaceShape) {
-                boundingSector.setEmpty()
-                boundingSector.union(vertexArray, vertexIndex, VERTEX_STRIDE)
-                boundingSector.translate(vertexOrigin.y /*latitude*/, vertexOrigin.x /*longitude*/)
-                boundingBox.setToUnitBox() // Surface/geographic shape bounding box is unused
-            } else {
-                boundingBox.setToPoints(vertexArray, vertexIndex, VERTEX_STRIDE)
-                boundingBox.translate(vertexOrigin.x, vertexOrigin.y, vertexOrigin.z)
-                boundingSector.setEmpty() // Cartesian shape bounding sector is unused
-            }
+        if (attributes.isSurfaceShape) {
+            boundingSector.setEmpty()
+            boundingSector.union(vertexArray, vertexIndex, VERTEX_STRIDE)
+            boundingSector.translate(vertexOrigin.y /*latitude*/, vertexOrigin.x /*longitude*/)
+            boundingBox.setToUnitBox() // Surface/geographic shape bounding box is unused
+        } else {
+            boundingBox.setToPoints(vertexArray, vertexIndex, VERTEX_STRIDE)
+            boundingBox.translate(vertexOrigin.x, vertexOrigin.y, vertexOrigin.z)
+            boundingSector.setEmpty() // Cartesian shape bounding sector is unused
         }
     }
 
@@ -340,6 +351,9 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         if (vertexIndex == 0) {
             if (attributes.isSurfaceShape) vertexOrigin.set(longitude.inDegrees, latitude.inDegrees, altitude)
             else vertexOrigin.copy(point)
+            texCoord1d = 0.0
+        } else {
+            texCoord1d += point.distanceTo(prevPoint)
         }
         prevPoint.copy(point)
         if (attributes.isSurfaceShape) {
@@ -347,11 +361,14 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = 1.0f
+            vertexArray[vertexIndex++] = texCoord1d.toFloat()
 
             vertexArray[vertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (altitude - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = -1.0f
+            vertexArray[vertexIndex++] = texCoord1d.toFloat()
+
             if (addIndices) {
                 outlineElements.add(vertex - 2) // 0    0 -- 2
                 outlineElements.add(vertex - 1) // 1    |  / | ----> line goes this way
@@ -365,10 +382,12 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
             vertexArray[vertexIndex++] = (point.y - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = 1.0f
+            vertexArray[vertexIndex++] = texCoord1d.toFloat()
             vertexArray[vertexIndex++] = (point.x - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (point.y - vertexOrigin.y).toFloat()
             vertexArray[vertexIndex++] = (point.z - vertexOrigin.z).toFloat()
             vertexArray[vertexIndex++] = -1.0f
+            vertexArray[vertexIndex++] = texCoord1d.toFloat()
             if (addIndices) {
                 outlineElements.add(vertex - 2) // 0    0 -- 2
                 outlineElements.add(vertex - 1) // 1    |  / | ----> line goes this way
