@@ -45,6 +45,7 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
     protected var pickColorArray = IntArray(0)
     protected var widthArray = FloatArray(0)
     protected var vertexIndex = 0
+    protected var colorWidthIndex = 0
     protected val outlineElements = mutableListOf<Int>()
     protected val paths: Array<Path?> = arrayOfNulls(MAX_PATHS)
     protected var pathCount: Int = 0
@@ -130,7 +131,7 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         if (pathCount == 0) return  // nothing to draw
 
         var assembleBuffers = vertexArray.isEmpty()
-        val pickColorOffset = rc.reservePickedObjectIdRange(pathCount)
+        val pickColorOffset = if(rc.isPickMode) rc.reservePickedObjectIdRange(pathCount) else 0
         for (idx in 0 until pathCount ) {
             val path = paths[idx] ?: break
             if (path.positions.isEmpty()) continue
@@ -184,17 +185,17 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
         // Assemble the drawable's OpenGL vertex buffer object.
         val vertexBuffer = rc.getBufferObject(vertexBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, vertexArray) }
-        drawState.vertexState.addAttribute(0, vertexBuffer,4, GL_FLOAT, false, 20, 0) // pointA
+        drawState.vertexState.addAttribute(0, vertexBuffer, 4, GL_FLOAT, false, 20, 0) // pointA
         drawState.vertexState.addAttribute(1, vertexBuffer, 4, GL_FLOAT, false, 20, 40) // pointB
         drawState.vertexState.addAttribute(2, vertexBuffer, 4, GL_FLOAT, false, 20, 80) // pointC
         drawState.vertexState.addAttribute(3, vertexBuffer, 1, GL_FLOAT, false, 20,56) // texCoord
 
         val colorBuffer = rc.getBufferObject(colorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, colorArray) }
         val pickColorBuffer = rc.getBufferObject(pickColorBufferKey) { IntBufferObject(GL_ARRAY_BUFFER, pickColorArray) }
-        drawState.vertexState.addAttribute(4, if(rc.isPickMode) pickColorBuffer else colorBuffer, 4, GL_UNSIGNED_BYTE, true, 4, 0) // color
+        drawState.vertexState.addAttribute(4, if(rc.isPickMode) pickColorBuffer else colorBuffer, 4, GL_UNSIGNED_BYTE, true, 0, 0) // color
 
         val widthBuffer = rc.getBufferObject(widthBufferKey) { FloatBufferObject(GL_ARRAY_BUFFER, widthArray) }
-        drawState.vertexState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 4,0) // lineWidth
+        drawState.vertexState.addAttribute(5, widthBuffer, 1, GL_FLOAT, false, 0,0) // lineWidth
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {
@@ -245,55 +246,47 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
 
             val noIntermediatePoints = path.maximumIntermediatePoints <= 0 || path.pathType == LINEAR
 
-            if (noIntermediatePoints) {
-                path.vertexCount = p.size + 2
+            vertexCount += if (noIntermediatePoints) {
+                p.size + 2
             } else {
-                path.vertexCount = 2 + p.size + (p.size - 1) * path.maximumIntermediatePoints
+                2 + p.size + (p.size - 1) * path.maximumIntermediatePoints
             }
-
-            vertexCount += path.vertexCount
         }
 
         // Clear the shape's vertex array and element arrays. These arrays will accumulate values as the shapes's
         // geometry is assembled.
         vertexIndex = 0
+        colorWidthIndex = 0
         vertexArray = FloatArray(vertexCount * VERTEX_STRIDE)
         outlineElements.clear()
         colorArray = IntArray(vertexCount * 2)
         pickColorArray = IntArray(vertexCount * 2)
         widthArray = FloatArray(vertexCount * 2)
 
-        var tempVertexIndex = 0
         for (idx in 0 until pathCount ) {
             val path = paths[idx] ?: break
             val positions = path.positions
             if (positions.isEmpty()) continue  // no boundary positions to assemble
 
-            // Add the first vertex.
-            var begin = positions[0]
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, false)
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,false)
-            // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
-            for (vertexIdx in 1 until positions.size) {
-                val end = positions[vertexIdx]
-                addIntermediateVertices(rc, begin, end, path.maximumIntermediatePoints, path.pathType, path.altitudeMode)
-                addVertex(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode,true)
-                begin = end
-            }
-            addVertex(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode,true)
-
-            // Add colors and width to arrays
-            val outlineColorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
-            val outlineWidth = path.activeAttributes.outlineWidth + if(attributes.isSurfaceShape) 0.5f else 0f
+            // Get colors and width
+            val colorInt = path.activeAttributes.outlineColor.toColorIntRGBA()
+            val lineWidth = path.activeAttributes.outlineWidth + if(attributes.isSurfaceShape) 0.5f else 0f
             val pickColor = Color(0.0f,0.0f,0.0f,0.0f)
             PickedObject.identifierToUniqueColor(idx, pickColor)
             val pickColorInt = pickColor.toColorIntRGBA()
-            for (vertexIdx in 0 until 2 * path.vertexCount) {
-                colorArray[tempVertexIndex] = outlineColorInt
-                widthArray[tempVertexIndex] = outlineWidth
-                pickColorArray[tempVertexIndex] = pickColorInt
-                ++tempVertexIndex
+
+            // Add the first vertex.
+            var begin = positions[0]
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt, false)
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,false)
+            // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
+            for (vertexIdx in 1 until positions.size) {
+                val end = positions[vertexIdx]
+                addIntermediateVertices(rc, begin, end, path.maximumIntermediatePoints, path.pathType, path.altitudeMode, lineWidth, colorInt, pickColorInt)
+                addVertices(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,true)
+                begin = end
             }
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,false)
         }
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.
@@ -309,7 +302,8 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
         }
     }
 
-    protected open fun addIntermediateVertices(rc: RenderContext, begin: Position, end: Position, maximumIntermediatePoints : Int, pathType: PathType, altitudeMode: AltitudeMode) {
+    protected open fun addIntermediateVertices(rc: RenderContext, begin: Position, end: Position, maximumIntermediatePoints : Int, pathType: PathType,
+                                               altitudeMode: AltitudeMode, lineWidth : Float, colorInt : Int, pickColorInt: Int) {
         if (maximumIntermediatePoints <= 0) return  // suppress intermediate vertices when configured to do so
         val azimuth: Angle
         val length: Double
@@ -337,25 +331,40 @@ open class LineSet(private val attributes: LineSetAttributes): Boundable {
                 RHUMB_LINE -> begin.rhumbLocation(azimuth, dist, loc)
                 else -> {}
             }
-            addVertex(rc, loc.latitude, loc.longitude, alt, altitudeMode, true )
+            addVertices(rc, loc.latitude, loc.longitude, alt, altitudeMode, lineWidth, colorInt, pickColorInt,true )
             dist += deltaDist
             alt += deltaAlt
         }
     }
 
-    protected open fun addVertex(
-        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, altitudeMode: AltitudeMode, addIndices : Boolean
+    protected open fun addVertices(
+        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, altitudeMode: AltitudeMode, width : Float, colorInt : Int, pickColorInt: Int, addIndices : Boolean
     ) {
         val vertex = (vertexIndex / VERTEX_STRIDE - 1) * 2
         val point = rc.geographicToCartesian(latitude, longitude, altitude, altitudeMode, point)
         if (vertexIndex == 0) {
-            if (attributes.isSurfaceShape) vertexOrigin.set(longitude.inDegrees, latitude.inDegrees, altitude)
+            if (attributes.isSurfaceShape) vertexOrigin.set(
+                longitude.inDegrees,
+                latitude.inDegrees,
+                altitude
+            )
             else vertexOrigin.copy(point)
             texCoord1d = 0.0
         } else {
             texCoord1d += point.distanceTo(prevPoint)
         }
         prevPoint.copy(point)
+
+        // Duplicate  width and color because this function adds 2 vertices
+        widthArray[colorWidthIndex] = width
+        colorArray[colorWidthIndex] = colorInt
+        pickColorArray[colorWidthIndex] = pickColorInt
+        ++colorWidthIndex
+        widthArray[colorWidthIndex] = width
+        colorArray[colorWidthIndex] = colorInt
+        pickColorArray[colorWidthIndex] = pickColorInt
+        ++colorWidthIndex
+
         if (attributes.isSurfaceShape) {
             vertexArray[vertexIndex++] = (longitude.inDegrees - vertexOrigin.x).toFloat()
             vertexArray[vertexIndex++] = (latitude.inDegrees - vertexOrigin.y).toFloat()

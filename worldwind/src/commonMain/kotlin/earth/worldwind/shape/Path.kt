@@ -42,7 +42,6 @@ open class Path @JvmOverloads constructor(
     private val prevPoint = Vec3()
     private val texCoordMatrix = Matrix3()
     private val intermediateLocation = Location()
-    var vertexCount = 0
 
     companion object {
         protected const val VERTEX_STRIDE = 10
@@ -64,7 +63,6 @@ open class Path @JvmOverloads constructor(
         interiorElements.clear()
         outlineElements.clear()
         verticalElements.clear()
-        vertexCount = 0
     }
 
     override fun makeDrawable(rc: RenderContext) {
