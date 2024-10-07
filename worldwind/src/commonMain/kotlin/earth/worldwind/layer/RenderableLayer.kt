@@ -130,7 +130,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     private fun updatePath(path: Path) {
         val pathAttributes = LineSetAttributes(path)
-        val currentBatch = pathToBatchedLines[path] ?: return
+        val currentBatch = pathToBatchedPaths[path] ?: return
         if (!currentBatch.isAttributesEqual(pathAttributes)) {
             removePathFromBatch(path)
             addPathToBatch(path)
