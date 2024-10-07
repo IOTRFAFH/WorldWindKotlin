@@ -42,8 +42,8 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             logMessage(ERROR, "RenderableLayer", "setRenderable", "invalidIndex")
         }
         val oldRenderable = renderables[index]
+        batchRenderers[renderable::class]?.removeRenderable(oldRenderable)
         if (oldRenderable is Path) {
-            batchRenderers[renderable::class]?.removeRenderable(renderable)
             removePathFromBatch(oldRenderable)
         }
         return renderables.set(index, renderable)
@@ -95,8 +95,8 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             logMessage(ERROR, "RenderableLayer", "removeRenderable", "invalidIndex")
         }
         val renderable = renderables[index]
+        batchRenderers[renderable::class]?.removeRenderable(renderable)
         if (renderable is Path) {
-            batchRenderers[renderable::class]?.removeRenderable(renderable)
             removePathFromBatch(renderable)
         }
         return renderables.removeAt(index)
@@ -106,6 +106,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         var removed = false
         for (renderable in renderables) {
             removed = removed or this.renderables.remove(renderable)
+            batchRenderers[renderable::class]?.removeRenderable(renderable)
             if (renderable is Path) {
                 removePathFromBatch(renderable)
             }
