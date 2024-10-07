@@ -3,15 +3,22 @@ package earth.worldwind.layer
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
 import earth.worldwind.render.BatchedPaths
+import earth.worldwind.render.BatchRenderer
+import earth.worldwind.render.PathBatchRenderer
 import earth.worldwind.shape.LineSetAttributes
 import earth.worldwind.shape.Path
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import kotlin.jvm.JvmOverloads
+import kotlin.reflect.KClass
 
 open class RenderableLayer @JvmOverloads constructor(displayName: String? = null): AbstractLayer(displayName), Iterable<Renderable> {
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
+
+    private val batchRenderers : Map<KClass<out Renderable>, BatchRenderer> = mapOf(
+        Path::class to PathBatchRenderer()
+    )
 
     private val batchedLines = mutableListOf<BatchedPaths>()
     private val attributesToBatchedPaths = mutableMapOf<LineSetAttributes, BatchedPaths>()
@@ -36,6 +43,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         }
         val oldRenderable = renderables[index]
         if (oldRenderable is Path) {
+            batchRenderers[renderable::class]?.removeRenderable(renderable)
             removePathFromBatch(oldRenderable)
         }
         return renderables.set(index, renderable)
@@ -74,6 +82,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     fun removeRenderable(renderable: Renderable) : Boolean {
         if (renderables.remove(renderable)) {
+            batchRenderers[renderable::class]?.removeRenderable(renderable)
             if (renderable is Path)
                 removePathFromBatch(renderable)
             return true
@@ -87,6 +96,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         }
         val renderable = renderables[index]
         if (renderable is Path) {
+            batchRenderers[renderable::class]?.removeRenderable(renderable)
             removePathFromBatch(renderable)
         }
         return renderables.removeAt(index)
@@ -105,6 +115,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     fun clearRenderables() {
         renderables.clear()
+        for(batchRenderer in batchRenderers.values) {
+            batchRenderer.clear()
+        }
         batchedLines.clear()
         attributesToBatchedPaths.clear()
         pathToBatchedPaths.clear()
@@ -144,6 +157,8 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             val renderable = renderables[i]
             try {
                 // Here we're batching Paths
+                if(batchRenderers[renderable::class]?.addOrUpdateRenderable(renderable) == true)
+                    continue
                 if(renderable is Path) {
                     renderable.updateAttributes(rc)
                     val pathCanBeBatched = renderable.canBeBatched(rc)
@@ -170,6 +185,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             }
         }
         try {
+            for(batchRenderer in batchRenderers.values) {
+                batchRenderer.render(rc)
+            }
             for (batch in batchedLines) {
                 batch.render(rc)
             }
