@@ -2,7 +2,7 @@ package earth.worldwind.layer
 
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
-import earth.worldwind.render.BatchedLines
+import earth.worldwind.render.BatchedPaths
 import earth.worldwind.shape.LineSetAttributes
 import earth.worldwind.shape.Path
 import earth.worldwind.util.Logger.ERROR
@@ -13,9 +13,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
 
-    private val batchedLines = mutableListOf<BatchedLines>()
-    private val attributesToBatchedLines = mutableMapOf<LineSetAttributes, BatchedLines>()
-    private val pathToBatchedLines = mutableMapOf<Path, BatchedLines>()
+    private val batchedLines = mutableListOf<BatchedPaths>()
+    private val attributesToBatchedPaths = mutableMapOf<LineSetAttributes, BatchedPaths>()
+    private val pathToBatchedPaths = mutableMapOf<Path, BatchedPaths>()
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
@@ -106,26 +106,26 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     fun clearRenderables() {
         renderables.clear()
         batchedLines.clear()
-        attributesToBatchedLines.clear()
-        pathToBatchedLines.clear()
+        attributesToBatchedPaths.clear()
+        pathToBatchedPaths.clear()
     }
 
     private fun addPathToBatch(path: Path) {
         val pathAttributes = LineSetAttributes(path)
-        var batch = attributesToBatchedLines[pathAttributes]
+        var batch = attributesToBatchedPaths[pathAttributes]
         if(batch == null) {
-            batch = BatchedLines(pathAttributes)
+            batch = BatchedPaths(pathAttributes)
             batchedLines.add(batch)
-            attributesToBatchedLines[pathAttributes] = batch
+            attributesToBatchedPaths[pathAttributes] = batch
         }
         batch.addPath(path)
-        pathToBatchedLines[path] = batch
+        pathToBatchedPaths[path] = batch
     }
 
     private fun removePathFromBatch(path : Path) {
-        val currentBatch = pathToBatchedLines[path] ?: return
+        val currentBatch = pathToBatchedPaths[path] ?: return
         currentBatch.removePath(path)
-        pathToBatchedLines.remove(path)
+        pathToBatchedPaths.remove(path)
     }
 
     private fun updatePath(path: Path) {
@@ -147,7 +147,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                 if(renderable is Path) {
                     renderable.updateAttributes(rc)
                     val pathCanBeBatched = renderable.canBeBatched(rc)
-                    val pathWasBatched = pathToBatchedLines[renderable] != null
+                    val pathWasBatched = pathToBatchedPaths[renderable] != null
                     if (pathCanBeBatched) {
                         if (!pathWasBatched) {
                             renderable.reset()

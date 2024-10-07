@@ -1,18 +1,18 @@
 package earth.worldwind.render
 
-import earth.worldwind.shape.LineSet
+import earth.worldwind.shape.PathSet
 import earth.worldwind.shape.LineSetAttributes
 import earth.worldwind.shape.Path
 
-class BatchedLines(private val attributes: LineSetAttributes) {
-    private val batches = mutableListOf<LineSet>()
+class BatchedPaths(private val attributes: LineSetAttributes) {
+    private val batches = mutableListOf<PathSet>()
     private val freeBatches =
-        mutableListOf<LineSet>() // duplicate batches that aren't full here
-    private val pathToBatch = mutableMapOf<Path, LineSet>()
+        mutableListOf<PathSet>() // duplicate batches that aren't full here
+    private val pathToBatch = mutableMapOf<Path, PathSet>()
 
     fun addPath(path: Path) {
         if (freeBatches.isEmpty()) {
-            val newBatch = LineSet(attributes)
+            val newBatch = PathSet(attributes)
             newBatch.addPath(path)
             pathToBatch[path] = newBatch
 

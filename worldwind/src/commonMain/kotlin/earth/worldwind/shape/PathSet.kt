@@ -38,7 +38,7 @@ open class LineSetAttributes(path : Path) {
     }
 }
 
-open class LineSet(private val attributes: LineSetAttributes): Boundable {
+open class PathSet(private val attributes: LineSetAttributes): Boundable {
 
     protected var vertexArray = FloatArray(0)
     protected var colorArray = IntArray(0)
