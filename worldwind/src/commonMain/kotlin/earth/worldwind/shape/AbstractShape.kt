@@ -55,10 +55,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     protected val boundingBox = BoundingBox()
     private val scratchPoint = Vec3()
     private var activeAttributesHash = 0
-    var allowBatching = false
+    open var allowBatching = false
     var forceRecreateBatch = false
 
-    open fun canBeBatched(rc : RenderContext) : Boolean {
+    open fun addToBatch(rc : RenderContext) : Boolean {
         return allowBatching
     }
 
@@ -83,6 +83,11 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
 
         // Update attributes that are dependent on render context.
         updateAttributes(rc)
+
+        // Call function that implements batching and skip next steps, because they're only relevant for single object rendering
+        if(addToBatch(rc)) {
+            return
+        }
 
         // Keep track of the drawable count to determine whether this shape has enqueued drawables.
         val drawableCount = rc.drawableCount

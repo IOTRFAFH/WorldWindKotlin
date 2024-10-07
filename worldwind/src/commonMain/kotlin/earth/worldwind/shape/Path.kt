@@ -42,6 +42,7 @@ open class Path @JvmOverloads constructor(
     private val prevPoint = Vec3()
     private val texCoordMatrix = Matrix3()
     private val intermediateLocation = Location()
+    override var allowBatching = true
 
     companion object {
         protected const val VERTEX_STRIDE = 10
@@ -53,8 +54,19 @@ open class Path @JvmOverloads constructor(
         protected fun nextCacheKey() = Any()
     }
 
-    override fun canBeBatched(rc : RenderContext) : Boolean {
-        return rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.interiorImageSource == null
+    override fun addToBatch(rc : RenderContext) : Boolean {
+        val canBeBatched = rc.currentLayer is RenderableLayer && allowBatching && (!isExtrude || isSurfaceShape) && activeAttributes.interiorImageSource == null
+
+        val layer = rc.currentLayer as RenderableLayer
+        val renderer = layer.batchRenderers.getOrPut(Path::class) { PathBatchRenderer() }
+
+        if(!canBeBatched) {
+            renderer.removeRenderable(this)
+            return false
+        }
+
+        reset()
+        return renderer.addOrUpdateRenderable(this)
     }
 
     override fun reset() {
