@@ -65,7 +65,6 @@ open class Path @JvmOverloads constructor(
             return false
         }
 
-        reset()
         return renderer.addOrUpdateRenderable(this)
     }
 

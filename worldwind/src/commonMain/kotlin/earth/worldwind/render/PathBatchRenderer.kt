@@ -43,6 +43,7 @@ class PathBatchRenderer : BatchRenderer {
 
         val pathWasBatched = pathToBatchedPaths[renderable] != null
         if (!pathWasBatched) {
+            renderable.reset()
             addPathToBatch(renderable)
         } else if (pathWasBatched) {
             updatePath(renderable)
