@@ -82,6 +82,7 @@ abstract class AbstractMilStd2525TacticalGraphic(
             }
             // Draw available shapes
             for (renderable in shapes) {
+                if(renderable is AbstractShape) renderable.allowBatching = false // disable batching
                 if (renderable is Highlightable) renderable.isHighlighted = isHighlighted
                 if (renderable !is Label || isHighlighted || currentScale <= labelScaleThreshold) renderable.render(rc)
             }

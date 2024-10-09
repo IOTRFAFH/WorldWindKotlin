@@ -4,6 +4,7 @@ import earth.worldwind.PickedObject
 import earth.worldwind.geom.*
 import earth.worldwind.geom.Angle.Companion.degrees
 import earth.worldwind.globe.Globe
+import earth.worldwind.layer.RenderableLayer
 import earth.worldwind.render.AbstractRenderable
 import earth.worldwind.render.Color
 import earth.worldwind.render.RenderContext
@@ -59,10 +60,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     var forceRecreateBatch = false
 
     open fun addToBatch(rc : RenderContext) : Boolean {
-        return allowBatching
+        return rc.currentLayer is RenderableLayer && allowBatching
     }
 
-    fun updateAttributes(rc: RenderContext) {
+    private fun updateAttributes(rc: RenderContext) {
         // Select the currently active attributes. Don't render anything if the attributes are unspecified.
         determineActiveAttributes(rc)
 
