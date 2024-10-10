@@ -16,7 +16,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
 
-    var batchRenderers = mutableMapOf<KClass<out Renderable>, BatchRenderer>()
+    val batchRenderers = mutableMapOf<KClass<out Renderable>, BatchRenderer>()
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
