@@ -58,9 +58,10 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     private var activeAttributesHash = 0
     open var allowBatching = false
     var forceRecreateBatch = false
+    var forceDeleteFromBatch = false // hack, only use with objects that will be deleted and never used to remove them from batches
 
     open fun addToBatch(rc : RenderContext) : Boolean {
-        return rc.currentLayer is RenderableLayer && allowBatching
+        return rc.currentLayer is RenderableLayer && allowBatching && !isHighlighted
     }
 
     private fun updateAttributes(rc: RenderContext) {

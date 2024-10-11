@@ -4,6 +4,7 @@ import earth.worldwind.geom.AltitudeMode
 import earth.worldwind.geom.Angle
 import earth.worldwind.geom.Location
 import earth.worldwind.geom.Sector
+import earth.worldwind.layer.RenderableLayer
 import earth.worldwind.render.AbstractSurfaceRenderable
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
@@ -33,6 +34,7 @@ abstract class AbstractMilStd2525TacticalGraphic(
     private var maxScale = Double.MAX_VALUE
     private val lodBuffer = mutableMapOf<Int, List<Renderable>>()
     private val lodSector = mutableMapOf<Int, Sector>()
+    private var previousLod = -1
 
     protected companion object {
         const val MAX_WIDTH_DP = 1e-3
@@ -73,6 +75,18 @@ abstract class AbstractMilStd2525TacticalGraphic(
         // Check if tactical graphics visible
         val terrainSector = rc.terrain.sector
         if (!terrainSector.isEmpty && terrainSector.intersects(sector) && getExtent(rc).intersectsFrustum(rc.frustum)) {
+            if(previousLod != lod) {
+                val previousLodShapes = lodBuffer[previousLod]
+                if(previousLodShapes != null) {
+                    val layer = rc.currentLayer as RenderableLayer
+                    for (renderable in previousLodShapes) {
+                        val renderer = layer.batchRenderers[renderable::class]?: continue
+                        renderer.removeRenderable(renderable)
+                    }
+                }
+            }
+            previousLod = lod
+
             val shapes = lodBuffer[lod] ?: run {
                 sector.setEmpty() // Prepare bounding box to be extended by real graphics measures
                 makeRenderables(computeLoDScale(equatorialRadius, lod)).also {
@@ -82,7 +96,6 @@ abstract class AbstractMilStd2525TacticalGraphic(
             }
             // Draw available shapes
             for (renderable in shapes) {
-                if(renderable is AbstractShape) renderable.allowBatching = false // disable batching
                 if (renderable is Highlightable) renderable.isHighlighted = isHighlighted
                 if (renderable !is Label || isHighlighted || currentScale <= labelScaleThreshold) renderable.render(rc)
             }
@@ -92,6 +105,12 @@ abstract class AbstractMilStd2525TacticalGraphic(
     protected abstract fun makeRenderables(scale: Double): List<Renderable> // Platform dependent implementation
 
     protected fun reset() {
+        for(shapes in lodBuffer.values) {
+            for(renderable in shapes) {
+                if (renderable is AbstractShape) renderable.forceDeleteFromBatch = true // this will remove renderable from batches
+            }
+        }
+
         lodBuffer.clear()
         lodSector.clear()
     }
