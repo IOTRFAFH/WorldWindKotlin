@@ -2,11 +2,8 @@ package earth.worldwind.layer
 
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
-import earth.worldwind.render.BatchedPaths
 import earth.worldwind.render.BatchRenderer
-import earth.worldwind.render.PathBatchRenderer
-import earth.worldwind.shape.LineSetAttributes
-import earth.worldwind.shape.Path
+import earth.worldwind.shape.milstd2525.AbstractMilStd2525TacticalGraphic
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import kotlin.jvm.JvmOverloads
@@ -36,7 +33,10 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
             logMessage(ERROR, "RenderableLayer", "setRenderable", "invalidIndex")
         }
         val oldRenderable = renderables[index]
-        batchRenderers[renderable::class]?.removeRenderable(oldRenderable)
+        batchRenderers[oldRenderable::class]?.removeRenderable(oldRenderable)
+        if(oldRenderable is AbstractMilStd2525TacticalGraphic) {
+            oldRenderable.removeShapesFromBatchers()
+        }
         return renderables.set(index, renderable)
     }
 
@@ -74,6 +74,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     fun removeRenderable(renderable: Renderable) : Boolean {
         if (renderables.remove(renderable)) {
             batchRenderers[renderable::class]?.removeRenderable(renderable)
+            if(renderable is AbstractMilStd2525TacticalGraphic) {
+                renderable.removeShapesFromBatchers()
+            }
             return true
         }
         return false
@@ -85,6 +88,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         }
         val renderable = renderables[index]
         batchRenderers[renderable::class]?.removeRenderable(renderable)
+        if(renderable is AbstractMilStd2525TacticalGraphic) {
+            renderable.removeShapesFromBatchers()
+        }
         return renderables.removeAt(index)
     }
 
@@ -93,6 +99,9 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         for (renderable in renderables) {
             removed = removed or this.renderables.remove(renderable)
             batchRenderers[renderable::class]?.removeRenderable(renderable)
+            if(renderable is AbstractMilStd2525TacticalGraphic) {
+                renderable.removeShapesFromBatchers()
+            }
         }
         return removed
     }
