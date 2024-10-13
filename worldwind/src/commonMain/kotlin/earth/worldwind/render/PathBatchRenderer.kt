@@ -60,6 +60,13 @@ class PathBatchRenderer : BatchRenderer {
     }
 
     override fun render(rc : RenderContext) {
+        // remove shapes that wasn't requested to be drawn this frame
+        for(path in pathToBatchedPaths.keys) {
+            if(path.lastRequestedFrameIndex != rc.frameIndex) {
+                removePathFromBatch(path)
+            }
+        }
+
         for (batch in batchedLines) {
             batch.render(rc)
         }

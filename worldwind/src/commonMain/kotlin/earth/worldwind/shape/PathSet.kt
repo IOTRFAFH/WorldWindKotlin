@@ -130,12 +130,6 @@ open class PathSet(private val attributes: LineSetAttributes): Boundable {
     private fun makeDrawable(rc: RenderContext) {
         if (pathCount == 0) return  // nothing to draw
 
-        // hack to delete paths that aren't tracked by renderable layer and are managed elsewhere
-        for (idx in 0 until pathCount ) {
-            val path = paths[idx] ?: break
-            if(path.forceDeleteFromBatch) removePath(path)
-        }
-
         var assembleBuffers = vertexArray.isEmpty()
         val pickColorOffset = if(rc.isPickMode) rc.reservePickedObjectIdRange(pathCount) else 0
         for (idx in 0 until pathCount ) {

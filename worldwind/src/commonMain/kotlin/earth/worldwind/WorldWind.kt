@@ -118,6 +118,7 @@ open class WorldWind @JvmOverloads constructor(
     private val scratchProjection = Matrix4()
     private val scratchPoint = Vec3()
     private val scratchRay = Line()
+    private var frameIndex = 0
 
     init {
         // Initialize default camera location based on user time zone
@@ -444,6 +445,7 @@ open class WorldWind @JvmOverloads constructor(
         )
         rc.renderResourceCache = renderResourceCache
         rc.verticalExaggeration = verticalExaggeration
+        rc.frameIndex = frameIndex
         rc.densityFactor = densityFactor
         rc.atmosphereAltitude = atmosphereAltitude
         rc.globeState = globe.state
@@ -493,6 +495,8 @@ open class WorldWind @JvmOverloads constructor(
 
         // Reset the render context's state in preparation for the next frame.
         rc.reset()
+
+        ++frameIndex
 
         return isRedrawRequested
     }

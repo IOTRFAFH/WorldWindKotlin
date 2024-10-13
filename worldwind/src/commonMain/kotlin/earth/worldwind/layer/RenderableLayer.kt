@@ -34,9 +34,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         }
         val oldRenderable = renderables[index]
         batchRenderers[oldRenderable::class]?.removeRenderable(oldRenderable)
-        if(oldRenderable is AbstractMilStd2525TacticalGraphic) {
-            oldRenderable.removeShapesFromBatchers()
-        }
         return renderables.set(index, renderable)
     }
 
@@ -74,9 +71,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     fun removeRenderable(renderable: Renderable) : Boolean {
         if (renderables.remove(renderable)) {
             batchRenderers[renderable::class]?.removeRenderable(renderable)
-            if(renderable is AbstractMilStd2525TacticalGraphic) {
-                renderable.removeShapesFromBatchers()
-            }
             return true
         }
         return false
@@ -88,9 +82,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         }
         val renderable = renderables[index]
         batchRenderers[renderable::class]?.removeRenderable(renderable)
-        if(renderable is AbstractMilStd2525TacticalGraphic) {
-            renderable.removeShapesFromBatchers()
-        }
         return renderables.removeAt(index)
     }
 
@@ -99,9 +90,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         for (renderable in renderables) {
             removed = removed or this.renderables.remove(renderable)
             batchRenderers[renderable::class]?.removeRenderable(renderable)
-            if(renderable is AbstractMilStd2525TacticalGraphic) {
-                renderable.removeShapesFromBatchers()
-            }
         }
         return removed
     }

@@ -104,18 +104,10 @@ abstract class AbstractMilStd2525TacticalGraphic(
 
     protected abstract fun makeRenderables(scale: Double): List<Renderable> // Platform dependent implementation
 
-    fun removeShapesFromBatchers() {
-        for(shapes in lodBuffer.values) {
-            for(renderable in shapes) {
-                if (renderable is AbstractShape) renderable.forceDeleteFromBatch = true // this will remove renderable from batches
-            }
-        }
-    }
-
     protected fun reset() {
-        removeShapesFromBatchers()
         lodBuffer.clear()
         lodSector.clear()
+        previousLod = -1
     }
 
     protected fun applyShapeAttributes(shape: AbstractShape) = shape.apply {
