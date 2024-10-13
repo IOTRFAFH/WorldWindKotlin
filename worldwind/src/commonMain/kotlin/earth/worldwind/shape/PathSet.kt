@@ -275,18 +275,21 @@ open class PathSet(private val attributes: LineSetAttributes): Boundable {
             PickedObject.identifierToUniqueColor(idx, pickColor)
             val pickColorInt = pickColor.toColorIntRGBA()
 
+            // Reset texCoord per path
+            texCoord1d = 0.0
+
             // Add the first vertex.
             var begin = positions[0]
-            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt, false)
-            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,false)
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt, addIndices = false, isFirstVertex =  true)
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt, addIndices = false, isFirstVertex = false)
             // Add the remaining vertices, inserting vertices along each edge as indicated by the path's properties.
             for (vertexIdx in 1 until positions.size) {
                 val end = positions[vertexIdx]
                 addIntermediateVertices(rc, begin, end, path.maximumIntermediatePoints, path.pathType, path.altitudeMode, lineWidth, colorInt, pickColorInt)
-                addVertices(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,true)
+                addVertices(rc, end.latitude, end.longitude, end.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,addIndices = true,  isFirstVertex = false)
                 begin = end
             }
-            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,false)
+            addVertices(rc, begin.latitude, begin.longitude, begin.altitude, path.altitudeMode, lineWidth, colorInt, pickColorInt,addIndices = false,  isFirstVertex = false)
         }
 
         // Compute the shape's bounding box or bounding sector from its assembled coordinates.
@@ -331,14 +334,14 @@ open class PathSet(private val attributes: LineSetAttributes): Boundable {
                 RHUMB_LINE -> begin.rhumbLocation(azimuth, dist, loc)
                 else -> {}
             }
-            addVertices(rc, loc.latitude, loc.longitude, alt, altitudeMode, lineWidth, colorInt, pickColorInt,true )
+            addVertices(rc, loc.latitude, loc.longitude, alt, altitudeMode, lineWidth, colorInt, pickColorInt,true, false)
             dist += deltaDist
             alt += deltaAlt
         }
     }
 
     protected open fun addVertices(
-        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, altitudeMode: AltitudeMode, width : Float, colorInt : Int, pickColorInt: Int, addIndices : Boolean
+        rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, altitudeMode: AltitudeMode, width : Float, colorInt : Int, pickColorInt: Int, addIndices : Boolean, isFirstVertex : Boolean
     ) {
         val vertex = (vertexIndex / VERTEX_STRIDE - 1) * 2
         val point = rc.geographicToCartesian(latitude, longitude, altitude, altitudeMode, point)
@@ -350,7 +353,9 @@ open class PathSet(private val attributes: LineSetAttributes): Boundable {
             )
             else vertexOrigin.copy(point)
             texCoord1d = 0.0
-        } else {
+        }
+
+        if(!isFirstVertex) {
             texCoord1d += point.distanceTo(prevPoint)
         }
         prevPoint.copy(point)
