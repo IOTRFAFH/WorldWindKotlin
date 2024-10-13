@@ -60,8 +60,9 @@ class PathBatchRenderer : BatchRenderer {
     }
 
     override fun render(rc : RenderContext) {
-        // remove shapes that wasn't requested to be drawn this frame
-        for(path in pathToBatchedPaths.keys) {
+        // Remove shapes that wasn't requested to be drawn this frame
+        val pathsToRemove = pathToBatchedPaths.keys.filter { it.lastRequestedFrameIndex != rc.frameIndex }
+        for(path in pathsToRemove) {
             if(path.lastRequestedFrameIndex != rc.frameIndex) {
                 removePathFromBatch(path)
             }
