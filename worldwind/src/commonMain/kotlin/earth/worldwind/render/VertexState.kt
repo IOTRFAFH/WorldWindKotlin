@@ -13,8 +13,7 @@ open class VertexState {
         val normalized: Boolean = false,
         val stride: Int = 0,
         val offset: Int = 0
-    ) {
-    }
+    )
 
     private var attributes = mutableListOf<VertexAttrib>()
 

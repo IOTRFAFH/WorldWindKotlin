@@ -3,7 +3,6 @@ package earth.worldwind.layer
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
 import earth.worldwind.render.BatchRenderer
-import earth.worldwind.shape.milstd2525.AbstractMilStd2525TacticalGraphic
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import kotlin.jvm.JvmOverloads
@@ -32,9 +31,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         require(index in renderables.indices) {
             logMessage(ERROR, "RenderableLayer", "setRenderable", "invalidIndex")
         }
-        val oldRenderable = renderables[index]
-        batchRenderers[oldRenderable::class]?.removeRenderable(oldRenderable)
-        return renderables.set(index, renderable)
+        return renderables.set(index, renderable).also { batchRenderers[it::class]?.removeRenderable(it) }
     }
 
     fun indexOfRenderable(renderable: Renderable) = renderables.indexOf(renderable)
@@ -80,9 +77,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         require(index in renderables.indices) {
             logMessage(ERROR, "RenderableLayer", "removeRenderable", "invalidIndex")
         }
-        val renderable = renderables[index]
-        batchRenderers[renderable::class]?.removeRenderable(renderable)
-        return renderables.removeAt(index)
+        return renderables.removeAt(index).also { batchRenderers[it::class]?.removeRenderable(it) }
     }
 
     fun removeAllRenderables(renderables: Iterable<Renderable>): Boolean {
@@ -116,15 +111,15 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                 // Keep going. Draw the remaining renderables.
             }
         }
-        try {
-            for(batchRenderer in batchRenderers.values) {
+        for(batchRenderer in batchRenderers.values) {
+            try {
                 batchRenderer.render(rc)
+            } catch (e: Exception) {
+                logMessage(
+                    ERROR, "RenderableLayer", "doRender",
+                    "Exception while rendering batches", e
+                )
             }
-        } catch (e: Exception) {
-            logMessage(
-                ERROR, "RenderableLayer", "doRender",
-                "Exception while rendering surfaceLinesBatch", e
-            )
         }
     }
 }

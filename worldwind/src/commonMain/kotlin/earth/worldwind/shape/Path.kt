@@ -55,7 +55,8 @@ open class Path @JvmOverloads constructor(
     }
 
     override fun addToBatch(rc : RenderContext) : Boolean {
-        val canBeBatched = super.addToBatch(rc) && (!isExtrude || isSurfaceShape) && activeAttributes.interiorImageSource == null
+        // Can't batch extrude as it uses different shader and geometry
+        val canBeBatched = super.addToBatch(rc) && (!isExtrude || isSurfaceShape)
 
         val layer = rc.currentLayer as RenderableLayer
         val renderer = layer.batchRenderers.getOrPut(Path::class) { PathBatchRenderer() }
