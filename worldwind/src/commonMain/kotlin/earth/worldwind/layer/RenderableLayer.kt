@@ -27,6 +27,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return renderables[index]
     }
 
+    // TODO: Make use of automatic removal from batches via frameIndex comparison and stop removing renderables from batches here
     fun setRenderable(index: Int, renderable: Renderable): Renderable {
         require(index in renderables.indices) {
             logMessage(ERROR, "RenderableLayer", "setRenderable", "invalidIndex")
@@ -65,6 +66,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
 
     fun addAllRenderables(iterable: Iterable<Renderable>) { for (renderable in iterable) renderables.add(renderable) }
 
+    // TODO: Make use of automatic removal from batches via frameIndex comparison and stop removing renderables from batches here
     fun removeRenderable(renderable: Renderable) : Boolean {
         if (renderables.remove(renderable)) {
             batchRenderers[renderable::class]?.removeRenderable(renderable)
@@ -73,6 +75,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return false
     }
 
+    // TODO: Make use of automatic removal from batches via frameIndex comparison and stop removing renderables from batches here
     fun removeRenderable(index: Int): Renderable {
         require(index in renderables.indices) {
             logMessage(ERROR, "RenderableLayer", "removeRenderable", "invalidIndex")
@@ -80,6 +83,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
         return renderables.removeAt(index).also { batchRenderers[it::class]?.removeRenderable(it) }
     }
 
+    // TODO: Make use of automatic removal from batches via frameIndex comparison and stop removing renderables from batches here
     fun removeAllRenderables(renderables: Iterable<Renderable>): Boolean {
         var removed = false
         for (renderable in renderables) {

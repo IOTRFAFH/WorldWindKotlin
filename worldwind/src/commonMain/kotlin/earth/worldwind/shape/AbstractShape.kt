@@ -61,6 +61,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     var lastRequestedFrameIndex = 0L
 
     open fun addToBatch(rc : RenderContext) : Boolean {
+        // TODO: Remove RenderableLayer check via extending batching across any layer
         return rc.currentLayer is RenderableLayer && allowBatching && !isHighlighted
     }
 
