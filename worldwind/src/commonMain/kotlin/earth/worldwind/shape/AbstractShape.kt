@@ -58,7 +58,7 @@ abstract class AbstractShape(override var attributes: ShapeAttributes): Abstract
     private var activeAttributesHash = 0
     open var allowBatching = false
     var forceRecreateBatch = false
-    var lastRequestedFrameIndex = 0
+    var lastRequestedFrameIndex = 0L
 
     open fun addToBatch(rc : RenderContext) : Boolean {
         return rc.currentLayer is RenderableLayer && allowBatching && !isHighlighted

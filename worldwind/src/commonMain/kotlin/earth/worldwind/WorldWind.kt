@@ -118,7 +118,7 @@ open class WorldWind @JvmOverloads constructor(
     private val scratchProjection = Matrix4()
     private val scratchPoint = Vec3()
     private val scratchRay = Line()
-    private var frameIndex = 0
+    private var frameIndex = 0L
 
     init {
         // Initialize default camera location based on user time zone
