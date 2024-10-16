@@ -58,8 +58,9 @@ open class Path @JvmOverloads constructor(
         // Can't batch extrude as it uses different shader and geometry
         val canBeBatched = super.addToBatch(rc) && (!isExtrude || isSurfaceShape)
 
-        if(rc.currentLayer is RenderableLayer) {
-            val renderer = (rc.currentLayer as RenderableLayer).batchRenderers.getOrPut(Path::class) { PathBatchRenderer() }
+        val layer = rc.currentLayer
+        if(layer is RenderableLayer) {
+            val renderer = layer.batchRenderers.getOrPut(Path::class) { PathBatchRenderer() }
 
             if (!canBeBatched) {
                 renderer.removeRenderable(this)
