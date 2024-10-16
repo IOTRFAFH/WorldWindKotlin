@@ -137,8 +137,8 @@ actual open class MilStd2525TacticalGraphic @JvmOverloads actual constructor(
                         val shape = if (si.shapeType == ShapeInfo.SHAPE_TYPE_FILL) {
                             Polygon(positions, if (i == 0) shapeAttributes else outlineAttributes)
                         } else {
-                            Path(positions, if (i == 0) shapeAttributes else outlineAttributes).apply { allowBatching = !hasOutline }
-                        }
+                            Path(positions, if (i == 0) shapeAttributes else outlineAttributes)
+                        }.apply { allowBatching = !hasOutline }
                         applyShapeAttributes(shape)
                         if (i == 0) shapes += shape else outlines += shape
                         if (!hasOutline) break
