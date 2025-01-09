@@ -36,8 +36,8 @@ open class Path @JvmOverloads constructor(
     protected val verticalElements = mutableListOf<Int>()
     protected lateinit var extrudeVertexBufferKey: Any
     protected lateinit var extrudeElementBufferKey: Any
-    protected lateinit var vertexBufferKey: Any
-    protected lateinit var elementBufferKey: Any
+    protected val vertexBufferKey = Any()
+    protected val elementBufferKey = Any()
     protected val vertexOrigin = Vec3()
     protected var texCoord1d = 0.0
     private val point = Vec3()
@@ -73,8 +73,8 @@ open class Path @JvmOverloads constructor(
 
         if (mustAssembleGeometry(rc)) {
             assembleGeometry(rc)
-            vertexBufferKey = nextCacheKey()
-            elementBufferKey = nextCacheKey()
+//            vertexBufferKey = nextCacheKey()
+//            elementBufferKey = nextCacheKey()
             extrudeVertexBufferKey = nextCacheKey()
             extrudeElementBufferKey = nextCacheKey()
         }
@@ -107,6 +107,7 @@ open class Path @JvmOverloads constructor(
         drawState.vertexBuffer = rc.getBufferObject(vertexBufferKey) {
             FloatBufferObject(GL_ARRAY_BUFFER, vertexArray, vertexArray.size)
         }
+        drawState.vertexBuffer!!.updateArray(vertexArray)
 
         // Assemble the drawable's OpenGL element buffer object.
         drawState.elementBuffer = rc.getBufferObject(elementBufferKey) {
@@ -116,6 +117,12 @@ open class Path @JvmOverloads constructor(
             for (element in verticalElements) array[index++] = element
             IntBufferObject(GL_ELEMENT_ARRAY_BUFFER, array)
         }
+        val array = IntArray(outlineElements.size + verticalElements.size)
+        var index = 0
+        for (element in outlineElements) array[index++] = element
+        for (element in verticalElements) array[index++] = element
+        val buffer = drawState.elementBuffer as IntBufferObject
+        buffer.updateArray(array)
 
         // Configure the drawable to use the outline texture when drawing the outline.
         if (activeAttributes.isDrawOutline) {

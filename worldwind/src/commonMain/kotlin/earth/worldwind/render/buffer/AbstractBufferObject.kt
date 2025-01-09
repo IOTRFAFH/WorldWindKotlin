@@ -6,8 +6,9 @@ import earth.worldwind.render.RenderResource
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import earth.worldwind.util.kgl.KglBuffer
+import kotlin.concurrent.Volatile
 
-abstract class AbstractBufferObject(protected val target: Int, val byteCount: Int) : RenderResource {
+abstract class AbstractBufferObject(protected val target: Int, @Volatile var byteCount: Int) : RenderResource {
     val ranges = mutableMapOf<Int, Range>()
     protected var id = KglBuffer.NONE
 
