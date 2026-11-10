@@ -153,6 +153,20 @@ open class Placemark @JvmOverloads constructor(
     /** How far this placemark's icon and label reached from its screen point when last drawn. */
     private var screenReach = 0.0
     /**
+     * The squared camera distance used for ordering this frame: 0 when always on top, the viewing distance in 2D.
+     */
+    private var cameraDistanceSq = 0.0
+    /** The screen depth offset of this frame's projection, see [projectToScreen]. */
+    private var depthOffset = 0.0
+    /** Whether this frame's place point projected into the depth range, see [projectToScreen]. */
+    private var isProjected = false
+    /** Whether [groundPoint] already holds this frame's ground point, see [projectToScreen]. */
+    private var hasGroundPoint = false
+    /**
+     * The batch state of this placemark when it is rendered by a [PlacemarkBatch].
+     */
+    internal var batchSlot: PlacemarkBatch.Slot? = null
+    /**
      * Reuses window-independent conversion terms of [position] across frames.
      */
     protected val pointMemo = PointMemo()
@@ -196,20 +210,84 @@ open class Placemark @JvmOverloads constructor(
         // Filter out renderable outside projection limits.
         if (rc.globe.projectionLimits?.contains(position) == false) return
 
-        // Compute the placemark's Cartesian model point. If the placemark's position is terrain-dependent but off the
-        // terrain, then compute it ABSOLUTE so that we have a point for the placemark and are thus able to draw it.
-        // Otherwise, its image and label portion that are potentially over the terrain won't get drawn, and would
-        // disappear as soon as there is no terrain at the placemark's position. This can occur at the window edges.
+        // Compute the placemark's Cartesian model point.
+        computePlacePoint(rc, placePoint)
+        computeCameraDistanceSq(rc)
+
+        // Drop a placemark that is clipped or well off screen before level of detail, attributes and texture.
+        if (!projectToScreen(rc)) return
+
+        // Select the level of detail and the active attributes; skip rendering when the selector says so.
+        if (!selectFrameAttributes(rc)) return
+
+        drawIndividually(rc)
+    }
+
+    /**
+     * Renders this placemark through [batch] when it can be drawn as a batched icon this frame, or individually
+     * otherwise. Shares the point, level-of-detail and attribute steps with [doRender]; the batch caches the point
+     * and the icon's instance data across frames.
+     */
+    internal fun renderBatched(rc: RenderContext, batch: PlacemarkBatch) {
+        if (rc.globe.projectionLimits?.contains(position) == false) {
+            batch.hide(this)
+            return
+        }
+        batch.resolvePlacePoint(rc, this, placePoint)
+        computeCameraDistanceSq(rc)
+        if (!selectFrameAttributes(rc)) {
+            batch.hide(this)
+            return
+        }
+        if (canDrawBatched(rc)) batch.update(rc, this, activeAttributes) else {
+            batch.hide(this)
+            // Batched icons are clipped on the GPU; only this path projects and culls each one.
+            if (projectToScreen(rc)) drawIndividually(rc)
+        }
+    }
+
+    /**
+     * Computes the placemark's Cartesian model point. If the placemark's position is terrain-dependent but off the
+     * terrain, then compute it ABSOLUTE so that we have a point for the placemark and are thus able to draw it.
+     * Otherwise, its image and label portion that are potentially over the terrain won't get drawn, and would
+     * disappear as soon as there is no terrain at the placemark's position. This can occur at the window edges.
+     */
+    internal fun computePlacePoint(rc: RenderContext, result: Vec3) {
         val effectiveAltitudeMode = if (rc.globe.is2D) AltitudeMode.CLAMP_TO_GROUND else altitudeMode
-        pointMemo.geographicToCartesian(rc, position, effectiveAltitudeMode, placePoint)
+        pointMemo.geographicToCartesian(rc, position, effectiveAltitudeMode, result)
+    }
 
-        // Compute the squared camera distance to the place point for ordering and comparisons; compute the actual
-        // distance only when needed for math (eye-distance scaling, billboard pixel size, level-of-detail selector).
-        val cameraDistanceSq = if (isAlwaysOnTop) 0.0 else if (rc.globe.is2D) rc.viewingDistance * rc.viewingDistance
+    /**
+     * Computes the surface normal at the placemark's position, used to offset billboarded icons from the terrain.
+     */
+    internal fun computeSurfaceNormal(rc: RenderContext, result: Vec3) {
+        pointMemo.geographicToCartesianNormal(rc, position.latitude, position.longitude, result)
+    }
+
+    /**
+     * Whether this placemark's place point depends on the terrain, so a cached point needs periodic refreshing.
+     */
+    internal fun isTerrainDependent(rc: RenderContext) = rc.globe.is2D || altitudeMode != AltitudeMode.ABSOLUTE
+
+    /**
+     * Computes the squared camera distance to the place point for ordering and comparisons; [selectFrameAttributes]
+     * computes the actual distance only when needed for math (eye-distance scaling, billboard pixel size, level of
+     * detail selector).
+     */
+    private fun computeCameraDistanceSq(rc: RenderContext) {
+        cameraDistanceSq = if (isAlwaysOnTop) 0.0 else if (rc.globe.is2D) rc.viewingDistance * rc.viewingDistance
         else rc.cameraPoint.distanceToSquared(placePoint)
+    }
 
+    /**
+     * Projects the place point to the screen with a depth offset for the current view, and drops the placemark when
+     * it is clipped or well off screen with no leader crossing the view.
+     *
+     * @return false if the placemark is not drawn this frame
+     */
+    private fun projectToScreen(rc: RenderContext): Boolean {
         // Compute a screen depth offset appropriate for the current viewing parameters.
-        var depthOffset = 0.0
+        depthOffset = 0.0
         val absTilt = abs(rc.camera.tilt.inDegrees)
         if (cameraDistanceSq < rc.horizonDistance * rc.horizonDistance && absTilt <= 90) {
             depthOffset = (1 - absTilt / 90) * DEFAULT_DEPTH_OFFSET
@@ -218,27 +296,56 @@ open class Placemark @JvmOverloads constructor(
         // Project the placemark's model point to screen coordinates, using the screen depth offset to push the screen
         // point's z component closer to the eye point. Billboarding re-projects it below if it lifts the point, and
         // may lift a clipped point back into view, so a clipped point is only final without billboarding.
-        val isProjected = rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)
-        if (!isProjected && !isBillboardingEnabled) return // clipped by the near plane or the far plane
+        isProjected = rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)
+        if (!isProjected && !isBillboardingEnabled) return false // clipped by the near plane or the far plane
 
         // Drop a placemark well off screen before level of detail, attributes, texture and image transform.
-        var hasGroundPoint = false
+        hasGroundPoint = false
         if (isProjected && !rc.isPickMode && rc.isFarOffScreen(screenPlacePoint, screenReach)) {
             // Attributes are not selected yet, so keep any leader this altitude mode allows that crosses the view.
-            if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return
+            if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return false
             pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
             hasGroundPoint = true
-            if (!rc.frustum.intersectsSegment(groundPoint, placePoint)) return
+            if (!rc.frustum.intersectsSegment(groundPoint, placePoint)) return false
         }
+        return true
+    }
 
+    /**
+     * Computes the camera distance, lets the level-of-detail selector adjust the attributes and determines the active
+     * attributes.
+     *
+     * @return false if the level-of-detail selector skips rendering this frame
+     */
+    private fun selectFrameAttributes(rc: RenderContext): Boolean {
         cameraDistance = if (levelOfDetailSelector != null || isEyeDistanceScaling || isBillboardingEnabled && !isAlwaysOnTop)
             sqrt(cameraDistanceSq) else 0.0
 
         // Allow the placemark to adjust the level of detail based on distance to the camera
-        if (levelOfDetailSelector?.selectLevelOfDetail(rc, this, cameraDistance) == false) return // skip rendering
+        if (levelOfDetailSelector?.selectLevelOfDetail(rc, this, cameraDistance) == false) return false // skip rendering
 
         // Determine the attributes to use for the current render pass.
         determineActiveAttributes(rc)
+        return true
+    }
+
+    /**
+     * Whether this frame's icon can be drawn by a [PlacemarkBatch]: a textured icon without a leader or a visible
+     * label that is not drawn on top of everything. The batch draws the icon only; anything else takes the
+     * individual path. Subclasses that change how the icon is drawn should return false.
+     */
+    protected open fun canDrawBatched(rc: RenderContext) = !isAlwaysOnTop && activeAttributes.imageSource != null &&
+            !mustDrawLeader(rc) && !(isLabelInRange() && mustDrawLabel(rc))
+
+    private fun isLabelInRange() = !isEyeDistanceScaling ||
+            cameraDistanceSq <= eyeDistanceScalingLabelThreshold * eyeDistanceScalingLabelThreshold
+
+    /**
+     * Draws this placemark's icon, leader and label with their own drawables, from the place point, camera distance
+     * and active attributes computed for this frame.
+     */
+    private fun drawIndividually(rc: RenderContext) {
+        val cameraDistanceSq = cameraDistanceSq
 
         // Perform point based culling for placemarks who's textures haven't been loaded yet.
         // If the texture hasn't been loaded yet, then perform point-based culling to avoid
@@ -335,7 +442,7 @@ open class Placemark @JvmOverloads constructor(
         }
 
         // If there's a label, perform these same operations for the label texture.
-        if ((!isEyeDistanceScaling || cameraDistanceSq <= eyeDistanceScalingLabelThreshold * eyeDistanceScalingLabelThreshold) && mustDrawLabel(rc)) {
+        if (isLabelInRange() && mustDrawLabel(rc)) {
             // Render the label's texture when the label's position is in the frustum. If the label's position is outside
             // the frustum we don't do anything. This ensures that label textures are rendered only as necessary.
             rc.getText(label, activeAttributes.labelAttributes, rc.frustum.containsPoint(placePoint))?.let { labelTexture ->
@@ -568,6 +675,8 @@ open class Placemark @JvmOverloads constructor(
          */
         const val DEFAULT_EYE_DISTANCE_SCALING_THRESHOLD = 4e5
         protected const val DEFAULT_DEPTH_OFFSET = -0.03
+        /** [DEFAULT_DEPTH_OFFSET] for [PlacemarkBatch], which applies it in the vertex shader. */
+        internal const val BATCH_DEPTH_OFFSET = DEFAULT_DEPTH_OFFSET
         private val placePoint = Vec3()
         private val billboardVector = Vec3()
         private val screenPlacePoint = Vec3()
