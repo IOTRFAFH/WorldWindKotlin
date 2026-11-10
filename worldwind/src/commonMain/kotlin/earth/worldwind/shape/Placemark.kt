@@ -234,14 +234,23 @@ open class Placemark @JvmOverloads constructor(
             return
         }
         batch.resolvePlacePoint(rc, this, placePoint)
+        // Nothing the last evaluation depends on changed: keep its outcome (see PlacemarkBatch.reuseFrameState).
+        if (batch.reuseFrameState(rc, this)) return
         computeCameraDistanceSq(rc)
         if (!selectFrameAttributes(rc)) {
             batch.hide(this)
+            batch.recordFrameState(rc, this, PlacemarkBatch.LOD_HIDDEN)
             return
         }
-        if (canDrawBatched(rc)) batch.update(rc, this, activeAttributes) else {
+        if (canDrawBatched(rc)) {
+            batch.update(rc, this, activeAttributes)
+            batch.recordFrameState(rc, this, PlacemarkBatch.LOD_BATCHED)
+        } else {
             batch.hide(this)
-            // Batched icons are clipped on the GPU; only this path projects and culls each one.
+            batch.markDrawnIndividually()
+            batch.recordFrameState(rc, this, PlacemarkBatch.LOD_INDIVIDUAL)
+            // Batched icons are culled per cell and clipped on the GPU; only this path projects and culls each one.
+            // Its outcome is never reused, so a placemark culled here is evaluated again next frame.
             if (projectToScreen(rc)) drawIndividually(rc)
         }
     }

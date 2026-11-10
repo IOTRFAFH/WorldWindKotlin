@@ -3,7 +3,7 @@ package earth.worldwind.layer
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
 import earth.worldwind.shape.Placemark
-import earth.worldwind.shape.PlacemarkBatch
+import earth.worldwind.shape.PlacemarkCells
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import kotlin.jvm.JvmOverloads
@@ -12,19 +12,20 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     protected val renderables = mutableListOf<Renderable>()
     val count get() = renderables.size
     /**
-     * Draws the icons of this layer's placemarks as one batch: per-icon work is cached across frames and done on the
-     * GPU, and icons sharing a texture are drawn with one draw call. Placemarks with a visible label or leader, or
-     * drawn on top of everything, are still drawn individually. Off by default; serves one window.
+     * Draws the icons of this layer's placemarks in batches, one per spatial cell: per-icon work is cached across
+     * frames and done on the GPU, icons sharing a texture are drawn with one draw call per cell, and cells out of view
+     * are skipped without touching their placemarks. Placemarks with a visible label or leader, or drawn on top of
+     * everything, are still drawn individually. Off by default; serves one window.
      */
     var isPlacemarkBatching = false
         set(value) {
             field = value
             if (!value) {
-                placemarkBatch?.clear()
-                placemarkBatch = null
+                placemarkCells?.clear()
+                placemarkCells = null
             }
         }
-    private var placemarkBatch: PlacemarkBatch? = null
+    private var placemarkCells: PlacemarkCells? = null
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
@@ -101,16 +102,16 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     override fun iterator() = renderables.iterator()
 
     override fun doRender(rc: RenderContext) {
-        // Picking frames and other windows than the batch's own render placemarks individually.
-        val batch = if (isPlacemarkBatching && !rc.isPickMode) {
-            (placemarkBatch ?: PlacemarkBatch().also { placemarkBatch = it }).takeIf { it.accepts(rc) }
+        // Picking frames and other windows than the cells' own render placemarks individually.
+        val cells = if (isPlacemarkBatching && !rc.isPickMode) {
+            (placemarkCells ?: PlacemarkCells().also { placemarkCells = it }).takeIf { it.accepts(rc) }
         } else null
-        batch?.beginFrame(rc)
+        cells?.beginFrame(rc)
         for (i in renderables.indices) {
             val renderable = renderables[i]
             try {
-                if (batch != null && renderable is Placemark) {
-                    if (renderable.isEnabled) renderable.renderBatched(rc, batch)
+                if (cells != null && renderable is Placemark) {
+                    if (renderable.isEnabled) cells.render(rc, renderable)
                 } else renderable.render(rc)
             } catch (e: Exception) {
                 logMessage(
@@ -120,6 +121,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                 // Keep going. Draw the remaining renderables.
             }
         }
-        batch?.endFrame(rc)
+        cells?.endFrame(rc)
     }
 }
