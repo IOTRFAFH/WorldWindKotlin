@@ -200,12 +200,8 @@ open class Placemark @JvmOverloads constructor(
         val effectiveAltitudeMode = if (rc.globe.is2D) AltitudeMode.CLAMP_TO_GROUND else altitudeMode
         pointMemo.geographicToCartesian(rc, position, effectiveAltitudeMode, placePoint)
 
-        // Drop a placemark well off screen before any of the work below: level of detail, attributes,
-        // texture and image transform used to run for every placemark on every frame, and on a map
-        // holding thousands of them, most out of view, that was most of the frame. The margin keeps
-        // icons and labels that reach in from the edge. A placemark with a leader is kept, since the
-        // leader can cross the screen while its point does not.
-        if (!rc.isPickMode && !hasLeader() && isFarOffScreen(rc)) return
+        // Drop a placemark well off screen before level of detail, attributes, texture and image transform.
+        if (!rc.isPickMode && isFarOffScreen(rc)) return
 
         // Compute the squared camera distance to the place point for ordering and comparisons; compute the actual
         // distance only when needed for math (eye-distance scaling, billboard pixel size, level-of-detail selector).
@@ -545,20 +541,26 @@ open class Placemark @JvmOverloads constructor(
         activeAttributes.isDrawLeader && (isLeaderPickingEnabled || !rc.isPickMode) &&
                 altitudeMode != AltitudeMode.CLAMP_TO_GROUND && !rc.globe.is2D
 
-    private fun hasLeader() = attributes.isDrawLeader || highlightAttributes?.isDrawLeader == true
-
-    /** Whether [placePoint] projects behind the camera, or more than [OFF_SCREEN_MARGIN] pixels outside the viewport. */
+    /**
+     * Whether [placePoint] projects behind the camera or more than [OFF_SCREEN_MARGIN] density-independent pixels
+     * outside the viewport, and no leader from it could cross the view.
+     */
     private fun isFarOffScreen(rc: RenderContext): Boolean {
-        if (!rc.project(placePoint, screenPlacePoint)) return true
-        val viewport = rc.viewport
-        return screenPlacePoint.x < viewport.x - OFF_SCREEN_MARGIN ||
-            screenPlacePoint.x > viewport.x + viewport.width + OFF_SCREEN_MARGIN ||
-            screenPlacePoint.y < viewport.y - OFF_SCREEN_MARGIN ||
-            screenPlacePoint.y > viewport.y + viewport.height + OFF_SCREEN_MARGIN
+        if (rc.project(placePoint, screenPlacePoint)) {
+            val margin = OFF_SCREEN_MARGIN * rc.densityFactor
+            val viewport = rc.viewport
+            if (screenPlacePoint.x >= viewport.x - margin && screenPlacePoint.x <= viewport.x + viewport.width + margin &&
+                screenPlacePoint.y >= viewport.y - margin && screenPlacePoint.y <= viewport.y + viewport.height + margin
+            ) return false
+        }
+        // Attributes are not selected yet, so test any leader this altitude mode allows.
+        if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return true
+        pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
+        return !rc.frustum.intersectsSegment(groundPoint, placePoint)
     }
 
     companion object {
-        /** Pixels beyond the viewport within which a placemark is still prepared: an icon and a label's reach. */
+        /** Density-independent pixels beyond the viewport within which a placemark is still prepared. */
         private const val OFF_SCREEN_MARGIN = 512.0
         /**
          * The default eye distance above which to reduce the size of this placemark, in meters.
