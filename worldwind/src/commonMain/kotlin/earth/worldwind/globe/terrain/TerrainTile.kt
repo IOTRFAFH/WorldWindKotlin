@@ -52,12 +52,39 @@ open class TerrainTile(sector: Sector, level: Level, row: Int, column: Int): Til
 
     public override val heightLimits get() = super.heightLimits
 
+    /**
+     * The [BasicTerrain.stamp] of the newest terrain this tile belongs to. Tiles are re-stamped with each new terrain;
+     * a tile that left the terrain keeps an older stamp.
+     */
+    var terrainStamp = 0L
+        internal set
+    /** Changes whenever [points] are recomputed. */
+    val pointsVersion get() = pointBufferVersion
+    private var hasHeights = false
+    /**
+     * [sector] grown by one grid cell on each side for elevation change checks: an update that only touches the
+     * tile's edge (strict sector intersection misses it) still refreshes the edge heights shared with neighbours.
+     */
+    private val heightCheckSector by lazy {
+        val dLat = sector.deltaLatitude.inDegrees / (level.tileHeight - 1)
+        val dLon = sector.deltaLongitude.inDegrees / (level.tileWidth - 1)
+        Sector().setDegrees(
+            sector.minLatitude.inDegrees - dLat, sector.minLongitude.inDegrees - dLon,
+            sector.deltaLatitude.inDegrees + 2 * dLat, sector.deltaLongitude.inDegrees + 2 * dLon
+        )
+    }
+
     open fun prepare(rc: RenderContext) {
         val globe = rc.globe
         val tileWidth = level.tileWidth
         val tileHeight = level.tileHeight
         val timestamp = rc.elevationModelTimestamp
-        if (timestamp != heightTimestamp) {
+        // The timestamp moves whenever elevation data loads anywhere on the globe: rebuild only when data under this
+        // tile changed, so its points, version and GPU buffers stay as they are for loads elsewhere.
+        val heightsChanged = timestamp != heightTimestamp &&
+                (!hasHeights || globe.isElevationChangedSince(heightTimestamp, heightCheckSector))
+        if (heightsChanged) {
+            hasHeights = true
             heightGrid.fill(0f)
             globe.getElevationGrid(sector, tileWidth, tileHeight, heightGrid)
             // Calculate height vertex buffer from height grid
@@ -73,7 +100,7 @@ open class TerrainTile(sector: Sector, level: Level, row: Int, column: Int): Til
         val ve = rc.globe.verticalExaggeration
         val state = rc.globeState
         val offset = rc.globe.offset
-        if (timestamp != heightTimestamp || ve != globeVE || state != globeState || offset != globeOffset) {
+        if (heightsChanged || ve != globeVE || state != globeState || offset != globeOffset) {
             val rowStride = (tileWidth + 2) * 3
             globe.geographicToCartesian(sector.centroidLatitude, sector.centroidLongitude, 0.0, origin)
             globe.geographicToCartesianGrid(

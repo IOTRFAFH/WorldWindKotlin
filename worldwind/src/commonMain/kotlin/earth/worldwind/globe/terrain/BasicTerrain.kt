@@ -13,6 +13,13 @@ open class BasicTerrain(
 ): Terrain {
     protected val tiles = tiles.toList()
     override val sector = Sector(sector)
+    /**
+     * Unique per terrain instance and stamped on every member tile, so a cache that remembers a tile can check in
+     * O(1) that the tile is still part of this terrain ([TerrainTile.terrainStamp] == [stamp]).
+     */
+    val stamp = ++stampSequence
+
+    init { for (tile in this.tiles) tile.terrainStamp = stamp }
     private val intersectPoint = Vec3()
 
     override fun intersect(line: Line, result: Vec3): Boolean {
@@ -74,52 +81,63 @@ open class BasicTerrain(
     }
 
     override fun surfacePoint(latitude: Angle, longitude: Angle, result: Vec3): Boolean {
+        val tile = surfaceTile(latitude, longitude) ?: return false
+        interpolateSurfacePoint(tile, latitude, longitude, result)
+        return true
+    }
+
+    /** The first tile that contains the location (the one [surfacePoint] interpolates), or null. */
+    fun surfaceTile(latitude: Angle, longitude: Angle): TerrainTile? {
+        // The terrain sector bounds every tile: locations outside it (off-screen shapes) skip the tile scan
+        if (!sector.contains(latitude, longitude)) return null
         for (i in tiles.indices) {
             val tile = tiles[i]
-            val sector = tile.sector
-
-            // Find the first tile that contains the specified location.
-            if (sector.contains(latitude, longitude)) {
-                // Compute the location's parameterized coordinates (s, t) within the tile grid, along with the
-                // fractional component (sf, tf) and integral component (si, ti).
-                val tileWidth = tile.level.tileWidth
-                val tileHeight = tile.level.tileHeight
-                val s = (longitude.inDegrees - sector.minLongitude.inDegrees) / sector.deltaLongitude.inDegrees * (tileWidth - 1)
-                val t = (latitude.inDegrees - sector.minLatitude.inDegrees) / sector.deltaLatitude.inDegrees * (tileHeight - 1)
-                val sf = if (s < tileWidth - 1) fract(s) else 1.0
-                val tf = if (t < tileHeight - 1) fract(t) else 1.0
-                val si = if (s < tileWidth - 1) (s + 1).toInt() else tileWidth - 1
-                val ti = if (t < tileHeight - 1) (t + 1).toInt() else tileHeight - 1
-
-                // Compute the location in the tile's local coordinate system. Perform a bilinear interpolation of
-                // the cell's four points based on the fractional portion of the location's parameterized coordinates.
-                // Tile coordinates are organized in the points array in row major order, starting at the tile's
-                // Southwest corner. Account for the tile's border vertices, which are embedded in the points array but
-                // must be ignored for this computation.
-                val tileRowStride = tileWidth + 2
-                val i00 = (si + ti * tileRowStride) * 3 // lower left coordinate
-                val i10 = i00 + 3 // lower right coordinate
-                val i01 = (si + (ti + 1) * tileRowStride) * 3 // upper left coordinate
-                val i11 = i01 + 3 // upper right coordinate
-                val f00 = (1 - sf) * (1 - tf)
-                val f10 = sf * (1 - tf)
-                val f01 = (1 - sf) * tf
-                val f11 = sf * tf
-                val points = tile.points
-                result.x = points[i00] * f00 + points[i10] * f10 + points[i01] * f01 + points[i11] * f11
-                result.y = points[i00 + 1] * f00 + points[i10 + 1] * f10 + points[i01 + 1] * f01 + points[i11 + 1] * f11
-                result.z = points[i00 + 2] * f00 + points[i10 + 2] * f10 + points[i01 + 2] * f01 + points[i11 + 2] * f11
-
-                // Translate the surface point from the tile's local coordinate system to Cartesian coordinates.
-                result.x += tile.origin.x
-                result.y += tile.origin.y
-                result.z += tile.origin.z
-                return true
-            }
+            if (tile.sector.contains(latitude, longitude)) return tile
         }
+        return null
+    }
 
-        // No tile was found that contains the location.
-        return false
+    companion object {
+        private var stampSequence = 0L
+
+        /** Bilinear interpolation of [tile]'s Cartesian point grid at a location inside the tile's sector. */
+        fun interpolateSurfacePoint(tile: TerrainTile, latitude: Angle, longitude: Angle, result: Vec3) {
+            val sector = tile.sector
+            // Compute the location's parameterized coordinates (s, t) within the tile grid, along with the
+            // fractional component (sf, tf) and integral component (si, ti).
+            val tileWidth = tile.level.tileWidth
+            val tileHeight = tile.level.tileHeight
+            val s = (longitude.inDegrees - sector.minLongitude.inDegrees) / sector.deltaLongitude.inDegrees * (tileWidth - 1)
+            val t = (latitude.inDegrees - sector.minLatitude.inDegrees) / sector.deltaLatitude.inDegrees * (tileHeight - 1)
+            val sf = if (s < tileWidth - 1) fract(s) else 1.0
+            val tf = if (t < tileHeight - 1) fract(t) else 1.0
+            val si = if (s < tileWidth - 1) (s + 1).toInt() else tileWidth - 1
+            val ti = if (t < tileHeight - 1) (t + 1).toInt() else tileHeight - 1
+
+            // Compute the location in the tile's local coordinate system. Perform a bilinear interpolation of
+            // the cell's four points based on the fractional portion of the location's parameterized coordinates.
+            // Tile coordinates are organized in the points array in row major order, starting at the tile's
+            // Southwest corner. Account for the tile's border vertices, which are embedded in the points array but
+            // must be ignored for this computation.
+            val tileRowStride = tileWidth + 2
+            val i00 = (si + ti * tileRowStride) * 3 // lower left coordinate
+            val i10 = i00 + 3 // lower right coordinate
+            val i01 = (si + (ti + 1) * tileRowStride) * 3 // upper left coordinate
+            val i11 = i01 + 3 // upper right coordinate
+            val f00 = (1 - sf) * (1 - tf)
+            val f10 = sf * (1 - tf)
+            val f01 = (1 - sf) * tf
+            val f11 = sf * tf
+            val points = tile.points
+            result.x = points[i00] * f00 + points[i10] * f10 + points[i01] * f01 + points[i11] * f11
+            result.y = points[i00 + 1] * f00 + points[i10 + 1] * f10 + points[i01 + 1] * f01 + points[i11 + 1] * f11
+            result.z = points[i00 + 2] * f00 + points[i10 + 2] * f10 + points[i01 + 2] * f01 + points[i11 + 2] * f11
+
+            // Translate the surface point from the tile's local coordinate system to Cartesian coordinates.
+            result.x += tile.origin.x
+            result.y += tile.origin.y
+            result.z += tile.origin.z
+        }
     }
 
     override fun heightLimits(levelNumberDepth: Int, result: FloatArray) {

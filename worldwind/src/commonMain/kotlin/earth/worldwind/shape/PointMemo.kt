@@ -7,6 +7,8 @@ import earth.worldwind.geom.Position
 import earth.worldwind.geom.Sector
 import earth.worldwind.geom.Vec3
 import earth.worldwind.globe.Globe
+import earth.worldwind.globe.terrain.BasicTerrain
+import earth.worldwind.globe.terrain.TerrainTile
 import earth.worldwind.render.RenderContext
 
 /**
@@ -16,8 +18,14 @@ import earth.worldwind.render.RenderContext
  * Cached terms: the altitude-zero base point and the altitude direction (every projection is
  * linear in altitude: cartesian(lat, lon, h) = base + normal * h), the global elevation model
  * height and the geoid offset. All of them are identical for every window, so one memo per shape
- * is correct in multi-window rendering. Terrain-clamped surface points are NOT memoized - the
- * tessellated terrain differs per window and per LoD and is still resolved each frame.
+ * is correct in multi-window rendering.
+ *
+ * Terrain-clamped points (3D only) are cached as the mesh height along the normal, together with
+ * the terrain tile it was measured on and that tile's points version. The height is reused while
+ * the tile is part of the current terrain and its mesh is unchanged; when tile selection changes
+ * (camera movement, LoD) or the tile's mesh is rebuilt (elevation load, vertical exaggeration),
+ * the tile is looked up and the height re-measured. The tessellated terrain differs per window,
+ * so alternating windows re-measure, but stay correct.
  *
  * Position and globe configuration changes are detected by value, so in-place position edits stay
  * safe. Altitude mode handling mirrors [RenderContext.geographicToCartesian] (without the useEM
@@ -43,6 +51,9 @@ open class PointMemo {
     private var hasElevation = false
     private var geoidOffset = 0f
     private var hasGeoid = false
+    private var surfaceTile: TerrainTile? = null
+    private var surfaceTileVersion = 0
+    private var surfaceHeight = 0.0
 
     /**
      * Forgets all cached terms, forcing recomputation on next use.
@@ -51,6 +62,7 @@ open class PointMemo {
         hasBase = false
         hasElevation = false
         hasGeoid = false
+        surfaceTile = null
     }
 
     /**
@@ -72,19 +84,52 @@ open class PointMemo {
         when (altitudeMode) {
             AltitudeMode.ABSOLUTE -> pointAt(altitude, result)
             AltitudeMode.ABOVE_SEA_LEVEL -> pointAt(altitude + geoidOffset(rc), result)
-            AltitudeMode.CLAMP_TO_GROUND -> if (!rc.terrain.surfacePoint(latitude, longitude, result)) {
-                // Use elevation model height as a fallback
-                pointAt(elevation(rc), result)
-            }
-            AltitudeMode.RELATIVE_TO_GROUND -> if (rc.terrain.surfacePoint(latitude, longitude, result)) {
-                // Offset along the normal vector at the terrain surface point.
-                if (altitude != 0.0) offsetAlongNormal(altitude * rc.globe.verticalExaggeration, result)
-            } else {
-                // Use elevation model height as a fallback
-                pointAt(altitude + elevation(rc), result)
-            }
+            AltitudeMode.CLAMP_TO_GROUND -> groundPoint(rc, latitude, longitude, 0.0, result)
+            AltitudeMode.RELATIVE_TO_GROUND -> groundPoint(rc, latitude, longitude, altitude, result)
         }
         return result
+    }
+
+    /**
+     * The point [altitude] above the terrain surface (clamped when zero), offset along the normal
+     * at the surface point, or above the elevation model height when no terrain covers the location.
+     * The surface height cache is keyed by terrain tile, not by globe offset, so 2D globes always
+     * take the regular terrain path.
+     */
+    private fun groundPoint(rc: RenderContext, latitude: Angle, longitude: Angle, altitude: Double, result: Vec3) {
+        val surface = if (rc.globe.is2D) SURFACE_UNCACHED else cachedSurfacePoint(rc, latitude, longitude, result)
+        val onTerrain = when (surface) {
+            SURFACE_FOUND -> true
+            // No terrain tile covers the location: skip scanning the terrain a second time
+            SURFACE_NO_TILE -> false
+            else -> rc.terrain.surfacePoint(latitude, longitude, result)
+        }
+        // Use elevation model height as a fallback
+        if (!onTerrain) pointAt(altitude + elevation(rc), result)
+        else if (altitude != 0.0) offsetAlongNormal(altitude * rc.globe.verticalExaggeration, result)
+    }
+
+    /**
+     * The terrain surface point as `base + normal * h`, with `h` cached against the terrain tile it
+     * was measured on. A hit costs two compares and three multiply-adds; the tile scan and the
+     * bilinear interpolation run only when the tile left the terrain or its mesh changed. Returns
+     * [SURFACE_FOUND] with the point in [result], [SURFACE_NO_TILE] when no tile covers the location,
+     * or [SURFACE_UNCACHED] (use the regular path) when the terrain is not a [BasicTerrain].
+     */
+    private fun cachedSurfacePoint(rc: RenderContext, latitude: Angle, longitude: Angle, result: Vec3): Int {
+        val terrain = rc.terrain as? BasicTerrain ?: return SURFACE_UNCACHED
+        val cached = surfaceTile
+        if (cached == null || cached.terrainStamp != terrain.stamp || cached.pointsVersion != surfaceTileVersion) {
+            val tile = terrain.surfaceTile(latitude, longitude) ?: run { surfaceTile = null; return SURFACE_NO_TILE }
+            BasicTerrain.interpolateSurfacePoint(tile, latitude, longitude, result)
+            // Height of the mesh point along the normal; the lateral residual (well under a centimetre) is dropped.
+            surfaceHeight = (result.x - basePoint.x) * normal.x + (result.y - basePoint.y) * normal.y +
+                    (result.z - basePoint.z) * normal.z
+            surfaceTile = tile
+            surfaceTileVersion = tile.pointsVersion
+        }
+        pointAt(surfaceHeight, result)
+        return SURFACE_FOUND
     }
 
     /**
@@ -111,6 +156,7 @@ open class PointMemo {
             globeState = rc.globeState
             rc.globe.geographicToCartesianNormal(latitude, longitude, normal)
             baseMask = 0
+            surfaceTile = null
             hasBase = true
             hasElevation = false
             hasGeoid = false
@@ -160,6 +206,9 @@ open class PointMemo {
     }
 
     companion object {
+        private const val SURFACE_FOUND = 0
+        private const val SURFACE_NO_TILE = 1
+        private const val SURFACE_UNCACHED = 2
         /**
          * Half-size of the elevation invalidation sector. Keeps the sector non-degenerate for the
          * strict [Sector.intersects] used by the update log while staying far below any elevation
