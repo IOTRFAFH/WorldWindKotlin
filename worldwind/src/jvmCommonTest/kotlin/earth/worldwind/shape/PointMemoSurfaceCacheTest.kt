@@ -76,6 +76,17 @@ class PointMemoSurfaceCacheTest {
         rc.terrain = BasicTerrain(tiles, Sector.fromDegrees(48.0, 37.0, 1.0, 1.0), null)
     }
 
+    /**
+     * Registers an elevation update over [sector] and hands the new timestamp to the frame. The model timestamp is the
+     * newest of its coverages and its own structure timestamp, so repeat until it advances (an update in the same
+     * millisecond as addCoverage would not, and the test would pass without exercising anything).
+     */
+    private fun elevationUpdate(sector: Sector = Sector().setFullSphere()) {
+        val before = globe.elevationModel.timestamp
+        do coverage.changed(sector) while (globe.elevationModel.timestamp <= before)
+        rc.elevationModelTimestamp = globe.elevationModel.timestamp
+    }
+
     private fun point(memo: PointMemo, lat: Double, lon: Double, alt: Double, mode: AltitudeMode) =
         Vec3().also { memo.geographicToCartesian(rc, fromDegrees(lat), fromDegrees(lon), alt, mode, it) }
 
@@ -123,8 +134,7 @@ class PointMemoSurfaceCacheTest {
         // Mesh rebuilt with new elevations within the same terrain: the tile's points version changes, the cached
         // height must follow
         coverage.amplitude = 800.0
-        coverage.changed()
-        rc.elevationModelTimestamp = globe.elevationModel.timestamp
+        elevationUpdate()
         tiles.forEach { it.prepare(rc) }
         val expected = meshPoint(lat, lon, 0.0, AltitudeMode.CLAMP_TO_GROUND)
         val refreshed = point(memo, lat, lon, 0.0, AltitudeMode.CLAMP_TO_GROUND)
@@ -139,18 +149,19 @@ class PointMemoSurfaceCacheTest {
     }
 
     @Test
-    fun testElevationLoadElsewhereKeepsTileMeshes() {
+    fun testElevationLoadAnywhereRebuildsMeshesAndCachedPointsFollow() {
+        // Any elevation load reloads every prepared tile's heights (as the geoid offset, which logs no update, is only
+        // picked up by a reload); the cached heights follow the new meshes through their points versions
+        val memo = PointMemo()
+        point(memo, 48.55, 37.55, 0.0, AltitudeMode.CLAMP_TO_GROUND)
         val versions = tiles.map { it.pointsVersion }
-        coverage.changed(Sector.fromDegrees(10.0, 10.0, 1.0, 1.0))
-        rc.elevationModelTimestamp = globe.elevationModel.timestamp
+        coverage.amplitude = 800.0 // data changes everywhere, but the update is logged far away
+        elevationUpdate(Sector.fromDegrees(10.0, 10.0, 1.0, 1.0))
         tiles.forEach { it.prepare(rc) }
-        assertEquals(versions, tiles.map { it.pointsVersion }, "tiles away from the load keep their mesh")
-
-        coverage.changed(Sector.fromDegrees(48.05, 37.05, 0.01, 0.01))
-        rc.elevationModelTimestamp = globe.elevationModel.timestamp
-        tiles.forEach { it.prepare(rc) }
-        val rebuilt = tiles.indices.filter { tiles[it].pointsVersion != versions[it] }
-        assertEquals(listOf(0), rebuilt, "only the tile under the load is rebuilt")
+        assertTrue(tiles.indices.all { tiles[it].pointsVersion != versions[it] }, "every tile is rebuilt")
+        val expected = meshPoint(48.55, 37.55, 0.0, AltitudeMode.CLAMP_TO_GROUND)
+        val actual = point(memo, 48.55, 37.55, 0.0, AltitudeMode.CLAMP_TO_GROUND)
+        assertEquals(0.0, actual.distanceTo(expected), 0.01, "cached point follows the rebuilt mesh")
     }
 
     @Test

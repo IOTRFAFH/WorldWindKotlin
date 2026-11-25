@@ -55,9 +55,38 @@ open class Globe(
      */
     val projectionLimits get() = projection.projectionLimits
     /**
-     * Current globe state.
+     * Current globe state. Reading it also brings [stateVersion] up to date.
      */
-    val state get() = State(ellipsoid, projection.displayName, geoid.displayName)
+    val state: State get() {
+        val ellipsoid = ellipsoid
+        val projectionName = projection.displayName
+        val geoidName = geoid.displayName
+        if (ellipsoid != versionEllipsoid || projectionName != versionProjectionName || geoidName != versionGeoidName) {
+            versionEllipsoid = ellipsoid
+            versionProjectionName = projectionName
+            versionGeoidName = geoidName
+            stateVersion = ++stateVersionSequence
+        }
+        return State(ellipsoid, projectionName, geoidName)
+    }
+    private var versionEllipsoid: Ellipsoid? = null
+    private var versionProjectionName: String? = null
+    private var versionGeoidName: String? = null
+    /**
+     * Changes whenever [state] compares unequal to its previous value (ellipsoid, projection or geoid changed, including
+     * a projection renamed in place). Brought up to date by reading [state], which the engine does once per frame, so
+     * it is the version of that frame's state snapshot (as [earth.worldwind.render.RenderContext.globeState] is), at
+     * the cost of a field read. Caches keep this number instead of a state object. Never reused, across globes too.
+     */
+    internal var stateVersion = 0L
+        private set
+    /**
+     * Unique per globe instance. Lets per-globe caches (see earth.worldwind.shape.PointMemo) tell globes apart without
+     * holding a reference to them.
+     */
+    internal val id = ++idSequence
+
+    init { state } // Initial state version
     /**
      * The globe offset in 2D continuous projection. Center is the default for 3D.
      */
@@ -295,4 +324,8 @@ open class Globe(
         else -> Position(position)
     }
 
+    private companion object {
+        var idSequence = 0
+        var stateVersionSequence = 0L
+    }
 }

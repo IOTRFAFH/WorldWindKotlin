@@ -13,13 +13,6 @@ open class BasicTerrain(
 ): Terrain {
     protected val tiles = tiles.toList()
     override val sector = Sector(sector)
-    /**
-     * Unique per terrain instance and stamped on every member tile, so a cache that remembers a tile can check in
-     * O(1) that the tile is still part of this terrain ([TerrainTile.terrainStamp] == [stamp]).
-     */
-    val stamp = ++stampSequence
-
-    init { for (tile in this.tiles) tile.terrainStamp = stamp }
     private val intersectPoint = Vec3()
 
     override fun intersect(line: Line, result: Vec3): Boolean {
@@ -87,7 +80,7 @@ open class BasicTerrain(
     }
 
     /** The first tile that contains the location (the one [surfacePoint] interpolates), or null. */
-    fun surfaceTile(latitude: Angle, longitude: Angle): TerrainTile? {
+    internal fun surfaceTile(latitude: Angle, longitude: Angle): TerrainTile? {
         // The terrain sector bounds every tile: locations outside it (off-screen shapes) skip the tile scan
         if (!sector.contains(latitude, longitude)) return null
         for (i in tiles.indices) {
@@ -98,10 +91,8 @@ open class BasicTerrain(
     }
 
     companion object {
-        private var stampSequence = 0L
-
         /** Bilinear interpolation of [tile]'s Cartesian point grid at a location inside the tile's sector. */
-        fun interpolateSurfacePoint(tile: TerrainTile, latitude: Angle, longitude: Angle, result: Vec3) {
+        internal fun interpolateSurfacePoint(tile: TerrainTile, latitude: Angle, longitude: Angle, result: Vec3) {
             val sector = tile.sector
             // Compute the location's parameterized coordinates (s, t) within the tile grid, along with the
             // fractional component (sf, tf) and integral component (si, ti).
