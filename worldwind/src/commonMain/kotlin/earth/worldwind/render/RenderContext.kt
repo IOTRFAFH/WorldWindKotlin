@@ -25,6 +25,8 @@ import earth.worldwind.util.SynchronizedPool
 import earth.worldwind.util.glu.GLU
 import earth.worldwind.util.glu.GLUtessellator
 import kotlinx.coroutines.CompletableDeferred
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.tan
 import kotlin.reflect.KClass
 import kotlin.time.Instant
@@ -354,12 +356,21 @@ open class RenderContext {
         return true
     }
 
-    /** Whether a projected [screenPoint] lies more than [OFF_SCREEN_MARGIN] density-independent pixels outside the viewport. */
-    internal fun isFarOffScreen(screenPoint: Vec3): Boolean {
-        val margin = OFF_SCREEN_MARGIN * densityFactor
+    /**
+     * Whether a projected [screenPoint] lies further outside the viewport than [OFF_SCREEN_MARGIN] density-independent
+     * pixels, or than [reach], how far what is drawn around the point extends from it.
+     */
+    internal fun isFarOffScreen(screenPoint: Vec3, reach: Double = 0.0): Boolean {
+        val margin = max(OFF_SCREEN_MARGIN * densityFactor, reach)
         return screenPoint.x < viewport.x - margin || screenPoint.x > viewport.x + viewport.width + margin ||
             screenPoint.y < viewport.y - margin || screenPoint.y > viewport.y + viewport.height + margin
     }
+
+    /** How far [bounds] extend from [screenPoint] along either screen axis. */
+    internal fun screenReach(screenPoint: Vec3, bounds: Viewport) = max(
+        max(abs(bounds.x - screenPoint.x), abs(bounds.x + bounds.width - screenPoint.x)),
+        max(abs(bounds.y - screenPoint.y), abs(bounds.y + bounds.height - screenPoint.y))
+    )
 
     /**
      * Projects a Cartesian point to screen coordinates, applying an offset to the point's projected depth value. The

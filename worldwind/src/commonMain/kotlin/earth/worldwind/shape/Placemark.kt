@@ -17,6 +17,7 @@ import earth.worldwind.util.math.encodeOrientationVector
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -149,6 +150,8 @@ open class Placemark @JvmOverloads constructor(
      * The distance from the camera to the placemark in meters.
      */
     protected var cameraDistance = 0.0
+    /** How far this placemark's icon and label reached from its screen point when last drawn. */
+    private var screenReach = 0.0
     /**
      * Reuses window-independent conversion terms of [position] across frames.
      */
@@ -213,12 +216,20 @@ open class Placemark @JvmOverloads constructor(
         }
 
         // Project the placemark's model point to screen coordinates, using the screen depth offset to push the screen
-        // point's z component closer to the eye point. Billboarding re-projects it below if it lifts the point.
-        if (!rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)) return // clipped by the near plane or the far plane
+        // point's z component closer to the eye point. Billboarding re-projects it below if it lifts the point, and
+        // may lift a clipped point back into view, so a clipped point is only final without billboarding.
+        val isProjected = rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)
+        if (!isProjected && !isBillboardingEnabled) return // clipped by the near plane or the far plane
 
         // Drop a placemark well off screen before level of detail, attributes, texture and image transform.
-        hasGroundPoint = false
-        if (!rc.isPickMode && isFarOffScreen(rc)) return
+        var hasGroundPoint = false
+        if (isProjected && !rc.isPickMode && rc.isFarOffScreen(screenPlacePoint, screenReach)) {
+            // Attributes are not selected yet, so keep any leader this altitude mode allows that crosses the view.
+            if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return
+            pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
+            hasGroundPoint = true
+            if (!rc.frustum.intersectsSegment(groundPoint, placePoint)) return
+        }
 
         cameraDistance = if (levelOfDetailSelector != null || isEyeDistanceScaling || isBillboardingEnabled && !isAlwaysOnTop)
             sqrt(cameraDistanceSq) else 0.0
@@ -285,6 +296,7 @@ open class Placemark @JvmOverloads constructor(
             if (!rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)) return // clipped by the near plane or the far plane
         } else {
             billboardVector.set(0.0, 0.0, 0.0)
+            if (!isProjected) return // clipped by the near plane or the far plane
         }
 
         // Keep track of the drawable count to determine whether this placemark has enqueued drawables.
@@ -314,6 +326,7 @@ open class Placemark @JvmOverloads constructor(
 
         // If the placemark's icon is visible, enqueue a drawable icon for processing on the OpenGL thread.
         imageTransform.boundingRectForUnitSquare(imageBounds)
+        var reach = rc.screenReach(screenPlacePoint, imageBounds)
         if (rc.frustum.intersectsViewport(imageBounds)) {
             val pool = rc.getDrawablePool(DrawableScreenTexture.KEY)
             val drawable = DrawableScreenTexture.obtain(pool)
@@ -337,6 +350,7 @@ open class Placemark @JvmOverloads constructor(
                 )
                 labelTransform.setScale(w * s, h * s, 1.0)
                 labelTransform.boundingRectForUnitSquare(labelBounds)
+                reach = max(reach, rc.screenReach(screenPlacePoint, labelBounds))
                 if (rc.frustum.intersectsViewport(labelBounds)) {
                     val pool = rc.getDrawablePool(DrawableScreenTexture.KEY)
                     val drawable = DrawableScreenTexture.obtain(pool)
@@ -345,6 +359,8 @@ open class Placemark @JvmOverloads constructor(
                 }
             }
         }
+
+        if (!rc.isPickMode) screenReach = reach
 
         // Enqueue a picked object that associates the placemark's icon and leader with its picked object ID.
         if (rc.isPickMode && rc.drawableCount != drawableCount) {
@@ -544,19 +560,6 @@ open class Placemark @JvmOverloads constructor(
         activeAttributes.isDrawLeader && (isLeaderPickingEnabled || !rc.isPickMode) &&
                 altitudeMode != AltitudeMode.CLAMP_TO_GROUND && !rc.globe.is2D
 
-    /**
-     * Whether the projected [screenPlacePoint] lies more than [RenderContext.OFF_SCREEN_MARGIN] density-independent
-     * pixels outside the viewport, and no leader from it could cross the view.
-     */
-    private fun isFarOffScreen(rc: RenderContext): Boolean {
-        if (!rc.isFarOffScreen(screenPlacePoint)) return false
-        // Attributes are not selected yet, so test any leader this altitude mode allows.
-        if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return true
-        pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
-        hasGroundPoint = true
-        return !rc.frustum.intersectsSegment(groundPoint, placePoint)
-    }
-
     companion object {
         /**
          * The default eye distance above which to reduce the size of this placemark, in meters.
@@ -569,8 +572,6 @@ open class Placemark @JvmOverloads constructor(
         private val billboardVector = Vec3()
         private val screenPlacePoint = Vec3()
         private val groundPoint = Vec3()
-        /** Whether [groundPoint] already holds this render pass's ground point. */
-        private var hasGroundPoint = false
         private val offset = Vec2()
         private val imageTransform = Matrix4()
         private val labelTransform = Matrix4()

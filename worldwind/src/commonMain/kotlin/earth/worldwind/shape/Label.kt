@@ -98,6 +98,8 @@ open class Label @JvmOverloads constructor(
      * Reuses window-independent conversion terms of [position] across frames.
      */
     protected val pointMemo = PointMemo()
+    /** How far this label's text reached from its screen point when last drawn. */
+    private var screenReach = 0.0
 
     companion object {
         /**
@@ -153,7 +155,7 @@ open class Label @JvmOverloads constructor(
         if (!rc.projectWithDepth(renderData.placePoint, screenDepthOffset, renderData.screenPlacePoint)) return  // clipped by the near plane or the far plane
 
         // Drop a label well off screen before attributes, text texture and transform.
-        if (!rc.isPickMode && rc.isFarOffScreen(renderData.screenPlacePoint)) return
+        if (!rc.isPickMode && rc.isFarOffScreen(renderData.screenPlacePoint, screenReach)) return
 
         // Select the currently active attributes. Don't render anything if the attributes are unspecified.
         determineActiveAttributes(rc)
@@ -216,6 +218,7 @@ open class Label @JvmOverloads constructor(
         // Apply the label's translation and scale according to its text size.
         renderData.unitSquareTransform.multiplyByScale(w * s, h * s, 1.0)
         renderData.unitSquareTransform.boundingRectForUnitSquare(renderData.screenBounds)
+        if (!rc.isPickMode) screenReach = rc.screenReach(renderData.screenPlacePoint, renderData.screenBounds)
         if (!rc.frustum.intersectsViewport(renderData.screenBounds)) return  // the text is outside the viewport
 
         // Obtain a pooled drawable and configure it to draw the label's text.
