@@ -152,6 +152,9 @@ open class Label @JvmOverloads constructor(
         // point's z component closer to the eye point.
         if (!rc.projectWithDepth(renderData.placePoint, screenDepthOffset, renderData.screenPlacePoint)) return  // clipped by the near plane or the far plane
 
+        // Drop a label well off screen before attributes, text texture and transform.
+        if (!rc.isPickMode && rc.isFarOffScreen(renderData.screenPlacePoint)) return
+
         // Select the currently active attributes. Don't render anything if the attributes are unspecified.
         determineActiveAttributes(rc)
 

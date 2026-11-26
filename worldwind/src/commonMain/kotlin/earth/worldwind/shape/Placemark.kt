@@ -200,13 +200,26 @@ open class Placemark @JvmOverloads constructor(
         val effectiveAltitudeMode = if (rc.globe.is2D) AltitudeMode.CLAMP_TO_GROUND else altitudeMode
         pointMemo.geographicToCartesian(rc, position, effectiveAltitudeMode, placePoint)
 
-        // Drop a placemark well off screen before level of detail, attributes, texture and image transform.
-        if (!rc.isPickMode && isFarOffScreen(rc)) return
-
         // Compute the squared camera distance to the place point for ordering and comparisons; compute the actual
         // distance only when needed for math (eye-distance scaling, billboard pixel size, level-of-detail selector).
         val cameraDistanceSq = if (isAlwaysOnTop) 0.0 else if (rc.globe.is2D) rc.viewingDistance * rc.viewingDistance
         else rc.cameraPoint.distanceToSquared(placePoint)
+
+        // Compute a screen depth offset appropriate for the current viewing parameters.
+        var depthOffset = 0.0
+        val absTilt = abs(rc.camera.tilt.inDegrees)
+        if (cameraDistanceSq < rc.horizonDistance * rc.horizonDistance && absTilt <= 90) {
+            depthOffset = (1 - absTilt / 90) * DEFAULT_DEPTH_OFFSET
+        }
+
+        // Project the placemark's model point to screen coordinates, using the screen depth offset to push the screen
+        // point's z component closer to the eye point. Billboarding re-projects it below if it lifts the point.
+        if (!rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)) return // clipped by the near plane or the far plane
+
+        // Drop a placemark well off screen before level of detail, attributes, texture and image transform.
+        hasGroundPoint = false
+        if (!rc.isPickMode && isFarOffScreen(rc)) return
+
         cameraDistance = if (levelOfDetailSelector != null || isEyeDistanceScaling || isBillboardingEnabled && !isAlwaysOnTop)
             sqrt(cameraDistanceSq) else 0.0
 
@@ -269,20 +282,10 @@ open class Placemark @JvmOverloads constructor(
             val altitude = rc.pixelSizeAtDistance(distance) * sin(rc.camera.tilt.inRadians)
             billboardVector.multiply(offsetY * altitude)
             placePoint.add(billboardVector)
+            if (!rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)) return // clipped by the near plane or the far plane
         } else {
             billboardVector.set(0.0, 0.0, 0.0)
         }
-
-        // Compute a screen depth offset appropriate for the current viewing parameters.
-        var depthOffset = 0.0
-        val absTilt = abs(rc.camera.tilt.inDegrees)
-        if (cameraDistanceSq < rc.horizonDistance * rc.horizonDistance && absTilt <= 90) {
-            depthOffset = (1 - absTilt / 90) * DEFAULT_DEPTH_OFFSET
-        }
-
-        // Project the placemark's model point to screen coordinates, using the screen depth offset to push the screen
-        // point's z component closer to the eye point.
-        if (!rc.projectWithDepth(placePoint, depthOffset, screenPlacePoint)) return // clipped by the near plane or the far plane
 
         // Keep track of the drawable count to determine whether this placemark has enqueued drawables.
         val drawableCount = rc.drawableCount
@@ -294,8 +297,8 @@ open class Placemark @JvmOverloads constructor(
         // Prepare a drawable for the placemark's leader, if requested. Enqueue the leader drawable before the icon
         // drawable in order to give the icon visual priority over the leader.
         if (mustDrawLeader(rc)) {
-            // Compute the placemark's Cartesian ground point.
-            pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
+            // Compute the placemark's Cartesian ground point, unless the off-screen test already did.
+            if (!hasGroundPoint) pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
 
             // If the leader is visible, enqueue a drawable leader for processing on the OpenGL thread.
             if (rc.frustum.intersectsSegment(groundPoint, placePoint)) {
@@ -542,26 +545,19 @@ open class Placemark @JvmOverloads constructor(
                 altitudeMode != AltitudeMode.CLAMP_TO_GROUND && !rc.globe.is2D
 
     /**
-     * Whether [placePoint] projects behind the camera or more than [OFF_SCREEN_MARGIN] density-independent pixels
-     * outside the viewport, and no leader from it could cross the view.
+     * Whether the projected [screenPlacePoint] lies more than [RenderContext.OFF_SCREEN_MARGIN] density-independent
+     * pixels outside the viewport, and no leader from it could cross the view.
      */
     private fun isFarOffScreen(rc: RenderContext): Boolean {
-        if (rc.project(placePoint, screenPlacePoint)) {
-            val margin = OFF_SCREEN_MARGIN * rc.densityFactor
-            val viewport = rc.viewport
-            if (screenPlacePoint.x >= viewport.x - margin && screenPlacePoint.x <= viewport.x + viewport.width + margin &&
-                screenPlacePoint.y >= viewport.y - margin && screenPlacePoint.y <= viewport.y + viewport.height + margin
-            ) return false
-        }
+        if (!rc.isFarOffScreen(screenPlacePoint)) return false
         // Attributes are not selected yet, so test any leader this altitude mode allows.
         if (altitudeMode == AltitudeMode.CLAMP_TO_GROUND || rc.globe.is2D) return true
         pointMemo.geographicToCartesian(rc, position, AltitudeMode.CLAMP_TO_GROUND, groundPoint)
+        hasGroundPoint = true
         return !rc.frustum.intersectsSegment(groundPoint, placePoint)
     }
 
     companion object {
-        /** Density-independent pixels beyond the viewport within which a placemark is still prepared. */
-        private const val OFF_SCREEN_MARGIN = 512.0
         /**
          * The default eye distance above which to reduce the size of this placemark, in meters.
          * If [Placemark.isEyeDistanceScaling] is true, this placemark's image, label and leader sizes are reduced as
@@ -573,6 +569,8 @@ open class Placemark @JvmOverloads constructor(
         private val billboardVector = Vec3()
         private val screenPlacePoint = Vec3()
         private val groundPoint = Vec3()
+        /** Whether [groundPoint] already holds this render pass's ground point. */
+        private var hasGroundPoint = false
         private val offset = Vec2()
         private val imageTransform = Matrix4()
         private val labelTransform = Matrix4()

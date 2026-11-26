@@ -32,6 +32,8 @@ import kotlin.time.Instant
 open class RenderContext {
     companion object {
         private const val MAX_PICKED_OBJECT_ID = 0xFFFFFF
+        /** Density-independent pixels beyond the viewport within which placemarks and labels are still prepared. */
+        const val OFF_SCREEN_MARGIN = 512.0
         /**
          * Maximum number of shape / label / placemark assemblies allowed per frame. Mostly a
          * fail-safe — the per-frame [maxAssemblyTimeMillis] cap is the real throttle for heavy
@@ -350,6 +352,13 @@ open class RenderContext {
         result.y = y
         result.z = z
         return true
+    }
+
+    /** Whether a projected [screenPoint] lies more than [OFF_SCREEN_MARGIN] density-independent pixels outside the viewport. */
+    internal fun isFarOffScreen(screenPoint: Vec3): Boolean {
+        val margin = OFF_SCREEN_MARGIN * densityFactor
+        return screenPoint.x < viewport.x - margin || screenPoint.x > viewport.x + viewport.width + margin ||
+            screenPoint.y < viewport.y - margin || screenPoint.y > viewport.y + viewport.height + margin
     }
 
     /**
