@@ -3,7 +3,7 @@ package earth.worldwind.layer
 import earth.worldwind.render.RenderContext
 import earth.worldwind.render.Renderable
 import earth.worldwind.shape.Placemark
-import earth.worldwind.shape.PlacemarkCells
+import earth.worldwind.shape.PlacemarkCellsByWindow
 import earth.worldwind.util.Logger.ERROR
 import earth.worldwind.util.Logger.logMessage
 import kotlin.jvm.JvmOverloads
@@ -15,7 +15,8 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
      * Draws the icons of this layer's placemarks in batches, one per spatial cell: per-icon work is cached across
      * frames and done on the GPU, icons sharing a texture are drawn with one draw call per cell, and cells out of view
      * are skipped without touching their placemarks. Placemarks with a visible label or leader, or drawn on top of
-     * everything, are still drawn individually. Off by default; serves one window.
+     * everything, are still drawn individually. Each window, and each copy of a continuous 2D map, is batched on its
+     * own. Off by default.
      */
     var isPlacemarkBatching = false
         set(value) {
@@ -25,7 +26,7 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                 placemarkCells = null
             }
         }
-    private var placemarkCells: PlacemarkCells? = null
+    private var placemarkCells: PlacemarkCellsByWindow? = null
 
     constructor(layer: RenderableLayer): this(layer.displayName) { addAllRenderables(layer) }
 
@@ -102,16 +103,19 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
     override fun iterator() = renderables.iterator()
 
     override fun doRender(rc: RenderContext) {
-        // Picking frames and other windows than the cells' own render placemarks individually.
-        val cells = if (isPlacemarkBatching && !rc.isPickMode) {
-            (placemarkCells ?: PlacemarkCells().also { placemarkCells = it }).takeIf { it.accepts(rc) }
+        // Each window and map copy has its own cells. Picking frames render placemarks individually, but only those in
+        // cells that intersect the pick frustum.
+        val cells = if (isPlacemarkBatching) {
+            (placemarkCells ?: PlacemarkCellsByWindow().also { placemarkCells = it }).cellsFor(rc)
         } else null
-        cells?.beginFrame(rc)
+        val isPick = rc.isPickMode
+        if (isPick) cells?.beginPick(rc) else cells?.beginFrame(rc)
         for (i in renderables.indices) {
             val renderable = renderables[i]
             try {
                 if (cells != null && renderable is Placemark) {
-                    if (renderable.isEnabled) cells.render(rc, renderable)
+                    if (!renderable.isEnabled) continue
+                    if (isPick) cells.pick(rc, renderable) else cells.render(rc, renderable)
                 } else renderable.render(rc)
             } catch (e: Exception) {
                 logMessage(
@@ -121,6 +125,6 @@ open class RenderableLayer @JvmOverloads constructor(displayName: String? = null
                 // Keep going. Draw the remaining renderables.
             }
         }
-        cells?.endFrame(rc)
+        if (!isPick) cells?.endFrame(rc)
     }
 }

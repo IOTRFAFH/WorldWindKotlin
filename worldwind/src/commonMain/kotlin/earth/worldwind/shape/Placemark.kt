@@ -163,9 +163,36 @@ open class Placemark @JvmOverloads constructor(
     /** Whether [groundPoint] already holds this frame's ground point, see [projectToScreen]. */
     private var hasGroundPoint = false
     /**
-     * The batch state of this placemark when it is rendered by a [PlacemarkBatch].
+     * The batch state of this placemark in the [PlacemarkCells] index with slot key 0: the usual single window and
+     * map copy.
      */
-    internal var batchSlot: PlacemarkBatch.Slot? = null
+    private var batchSlot: PlacemarkBatch.Slot? = null
+    /**
+     * The batch states in the indexes with other slot keys (more windows, the side copies of a continuous 2D map,
+     * the same placemark in more layers), indexed by key; allocated the first time this placemark needs one.
+     */
+    private var moreBatchSlots: Array<PlacemarkBatch.Slot?>? = null
+
+    /**
+     * This placemark's batch state in the index with slot key [key] (see [PlacemarkCells.slotKey]): each window and
+     * map copy has its own index, with its own Cartesian points.
+     */
+    internal fun batchSlot(key: Int) =
+        if (key == 0) batchSlot else moreBatchSlots?.let { if (key < it.size) it[key] else null }
+
+    internal fun setBatchSlot(key: Int, slot: PlacemarkBatch.Slot?) {
+        if (key == 0) {
+            batchSlot = slot
+            return
+        }
+        var slots = moreBatchSlots
+        if (slots == null || key >= slots.size) {
+            if (slot == null) return
+            slots = (slots ?: arrayOfNulls(0)).copyOf(maxOf(key + 1, MIN_MORE_BATCH_SLOTS))
+            moreBatchSlots = slots
+        }
+        slots[key] = slot
+    }
     /**
      * Reuses window-independent conversion terms of [position] across frames.
      */
@@ -686,6 +713,8 @@ open class Placemark @JvmOverloads constructor(
         protected const val DEFAULT_DEPTH_OFFSET = -0.03
         /** [DEFAULT_DEPTH_OFFSET] for [PlacemarkBatch], which applies it in the vertex shader. */
         internal const val BATCH_DEPTH_OFFSET = DEFAULT_DEPTH_OFFSET
+        /** Initial size of [moreBatchSlots]: keys 1 to 3 cover a second window or the side copies of one map. */
+        private const val MIN_MORE_BATCH_SLOTS = 4
         private val placePoint = Vec3()
         private val billboardVector = Vec3()
         private val screenPlacePoint = Vec3()

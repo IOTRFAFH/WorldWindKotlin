@@ -184,10 +184,19 @@ internal class PlacemarkBatch(
     private var framePoints = 0
     private var frameIconPixels = 0.0
     private var frameDrewIndividually = false
+    // Squared camera distances that order this frame's drawables among the others (see endFrame): the farthest
+    // visible depth-tested icon, and the nearest visible icon drawn without the depth test.
+    private var frameFarthestDepthTestedSq = 0.0
+    private var frameNearestOverlaySq = 0.0
+    /** Chunk buffers fetched this frame, shared by the frame's drawables. */
+    private var frameChunkBuffers = arrayOfNulls<BufferObject>(4)
 
     /** Frame of [PlacemarkCells] in which this cell's visibility was last decided, and the decision. */
     var testedFrame = -1L
     var isVisibleThisFrame = false
+    /** Pick of [PlacemarkCells] in which this cell was last tested against the pick frustum, and the outcome. */
+    var pickTestedFrame = -1L
+    var isInPickView = false
 
     val slotCount get() = slots.size
 
@@ -210,6 +219,8 @@ internal class PlacemarkBatch(
         framePoints = 0
         frameIconPixels = 0.0
         frameDrewIndividually = false
+        frameFarthestDepthTestedSq = -1.0
+        frameNearestOverlaySq = Double.MAX_VALUE
         // Pick up textures that finished loading or were evicted since the last frame.
         for (i in runs.indices) {
             val run = runs[i]
@@ -342,6 +353,7 @@ internal class PlacemarkBatch(
         if (state == LOD_BATCHED && slot.isVisible) {
             run!!.visibleFrame = frame
             if (slot.iconPixels > frameIconPixels) frameIconPixels = slot.iconPixels
+            includeInOrder(slot.isDepthTest, distance * distance)
         }
         diag.lodReused++ // DIAGNOSTICS
         return true
@@ -363,6 +375,17 @@ internal class PlacemarkBatch(
 
     private fun cameraDistance(rc: RenderContext, point: Vec3) =
         if (rc.globe.is2D) rc.viewingDistance else rc.cameraPoint.distanceTo(point)
+
+    /** The squared camera distance Placemark orders its own drawables by. */
+    private fun cameraDistanceSq(rc: RenderContext, point: Vec3) =
+        if (rc.globe.is2D) rc.viewingDistance * rc.viewingDistance else rc.cameraPoint.distanceToSquared(point)
+
+    /** Takes a visible icon's squared camera distance into this frame's drawable order. */
+    private fun includeInOrder(isDepthTest: Boolean, distanceSq: Double) {
+        if (isDepthTest) {
+            if (distanceSq > frameFarthestDepthTestedSq) frameFarthestDepthTestedSq = distanceSq
+        } else if (distanceSq < frameNearestOverlaySq) frameNearestOverlaySq = distanceSq
+    }
 
     /**
      * Notes that a member was drawn individually this frame (label or leader): culling then allows a label margin.
@@ -403,6 +426,7 @@ internal class PlacemarkBatch(
         // Records are compared after packing, so changes below the format's precision do not rewrite the chunk.
         val iconPixels = packRecord(placemark, attributes, run.texture, slot.normal, scratchRecord)
         if (iconPixels > frameIconPixels) frameIconPixels = iconPixels
+        includeInOrder(isDepthTest, cameraDistanceSq(rc, slot.point))
         slot.iconPixels = iconPixels
         slot.recordTexture = run.texture
         if (!slot.isVisible || !scratchRecord.contentEquals(slot.record)) {
@@ -428,21 +452,24 @@ internal class PlacemarkBatch(
         val indexBuffer = rc.getBufferObject(INDEX_BUFFER_KEY) { BufferObject(GL_ELEMENT_ARRAY_BUFFER, 0) }
         rc.offerGLBufferUpload(INDEX_BUFFER_KEY, 1) { NumericArray.Shorts(QUAD_INDICES) }
 
-        val pool = rc.getDrawablePool(DrawablePlacemarkBatch.KEY)
-        val drawable = DrawablePlacemarkBatch.obtain(pool)
-        drawable.program = rc.getShaderProgram(PROGRAM_KEY) { PlacemarkBatchProgram() }
-        drawable.indexBuffer = indexBuffer
-        drawable.prepareFrame(rc, origin, Placemark.BATCH_DEPTH_OFFSET)
         uploadBudget = MAX_CHUNK_UPLOADS_PER_FRAME
-        for (i in 0 until chunkCount()) {
+        val chunkCount = chunkCount()
+        if (frameChunkBuffers.size < chunkCount) frameChunkBuffers = arrayOfNulls(chunkCount)
+        for (i in 0 until chunkCount) {
             // Start after the chunk that last used the budget, so every changed chunk gets its turn.
-            val index = (i + uploadCursor) % chunkCount()
-            drawable.setChunkBuffer(index, uploadChunk(rc, chunks[index], index))
+            val index = (i + uploadCursor) % chunkCount
+            frameChunkBuffers[index] = uploadChunk(rc, chunks[index], index)
         }
-        // Split each visible run at chunk boundaries: one draw per texture per chunk.
+        // Split each visible run at chunk boundaries: one draw per texture per chunk. Depth-tested icons and icons
+        // drawn over everything go to separate drawables, ordered differently among the frame's other drawables.
+        var depthTested: DrawablePlacemarkBatch? = null
+        var overlay: DrawablePlacemarkBatch? = null
         for (i in runs.indices) {
             val run = runs[i]
             if (run.visibleFrame != frame) continue
+            val drawable = if (run.isDepthTest) depthTested ?: obtainDrawable(rc, indexBuffer, chunkCount)
+                .also { depthTested = it }
+            else overlay ?: obtainDrawable(rc, indexBuffer, chunkCount).also { overlay = it }
             var quad = run.firstQuad
             val end = run.firstQuad + run.slots.size
             while (quad < end) {
@@ -452,12 +479,27 @@ internal class PlacemarkBatch(
                 quad += count
             }
         }
-        if (drawable.segmentCount == 0) {
-            drawable.recycle()
-            return
+        for (i in 0 until chunkCount) frameChunkBuffers[i] = null
+        // Order each drawable among the frame's others by camera distance, as Placemark orders its icons. A batch
+        // draws its icons together, so it takes one distance for all of them:
+        // - Depth-tested icons write depth: the farthest one's distance draws them before anything nearer than any of
+        //   them (translucent shapes, labels and highlighted placemarks then blend over them), and whatever farther
+        //   is drawn after them fails the depth test where they were drawn.
+        // - Icons without the depth test do not write depth either, so anything drawn after them covers them: the
+        //   nearest one's distance draws them after everything farther than all of them.
+        depthTested?.let { rc.offerShapeDrawable(it, max(frameFarthestDepthTestedSq, 0.0)) }
+        overlay?.let {
+            rc.offerShapeDrawable(it, if (frameNearestOverlaySq == Double.MAX_VALUE) 0.0 else frameNearestOverlaySq)
         }
-        // Draw after the shapes at the same depth, as the nearest placemark would be.
-        rc.offerShapeDrawable(drawable, 0.0)
+    }
+
+    private fun obtainDrawable(rc: RenderContext, indexBuffer: BufferObject, chunkCount: Int): DrawablePlacemarkBatch {
+        val drawable = DrawablePlacemarkBatch.obtain(rc.getDrawablePool(DrawablePlacemarkBatch.KEY))
+        drawable.program = rc.getShaderProgram(PROGRAM_KEY) { PlacemarkBatchProgram() }
+        drawable.indexBuffer = indexBuffer
+        drawable.prepareFrame(rc, origin, Placemark.BATCH_DEPTH_OFFSET)
+        for (i in 0 until chunkCount) frameChunkBuffers[i]?.let { drawable.setChunkBuffer(i, it) }
+        return drawable
     }
 
     /**
@@ -532,7 +574,7 @@ internal class PlacemarkBatch(
         slot.normal.copy(from.normal)
         from.record.copyInto(slot.record)
         // isVisible stays false: the next update() finds its run here and writes the icon.
-        from.placemark.batchSlot = slot
+        from.placemark.setBatchSlot(cells.slotKey, slot)
         slots.add(slot)
         isLayoutDirty = true
         isTerrainSetDirty = true
@@ -542,7 +584,7 @@ internal class PlacemarkBatch(
      * Detaches every placemark from this batch.
      */
     fun clear() {
-        for (i in slots.indices) slots[i].placemark.let { if (it.batchSlot === slots[i]) it.batchSlot = null }
+        for (i in slots.indices) detach(slots[i])
         slots.clear()
         runs.clear()
         depthTestRuns.clear()
@@ -602,15 +644,20 @@ internal class PlacemarkBatch(
     }
 
     private fun slotFor(placemark: Placemark): Slot {
-        val existing = placemark.batchSlot
+        val existing = placemark.batchSlot(cells.slotKey)
         val slot = if (existing != null && existing.batch === this) existing else {
             Slot(this, placemark, slotCounter++ % TERRAIN_REFRESH_PERIOD).also {
-                placemark.batchSlot = it
+                placemark.setBatchSlot(cells.slotKey, it)
                 slots.add(it)
             }
         }
         slot.seenFrame = frame
         return slot
+    }
+
+    /** Clears [slot]'s placemark reference to it, unless the placemark has moved on to another slot. */
+    private fun detach(slot: Slot) {
+        if (slot.placemark.batchSlot(cells.slotKey) === slot) slot.placemark.setBatchSlot(cells.slotKey, null)
     }
 
     private fun runFor(rc: RenderContext, imageSource: ImageSource, isDepthTest: Boolean): Run {
@@ -637,7 +684,7 @@ internal class PlacemarkBatch(
         for (i in slots.indices) {
             val slot = slots[i]
             if (slot.seenFrame != frame) {
-                if (slot.placemark.batchSlot === slot) slot.placemark.batchSlot = null
+                detach(slot)
                 removed = true
             }
         }
