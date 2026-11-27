@@ -79,6 +79,28 @@ open class BasicTerrain(
         return true
     }
 
+    /** [TerrainTile.pointsVersion] of every tile, sorted; built on the first [hasTileVersion] call. */
+    private var tileVersions: LongArray? = null
+
+    /**
+     * Whether one of this terrain's tiles has the mesh with [version] ([TerrainTile.pointsVersion]). Versions are
+     * never reused, so a cache that kept only the number can tell that its tile and mesh are still in use.
+     */
+    internal fun hasTileVersion(version: Long): Boolean {
+        val versions = tileVersions ?: LongArray(tiles.size) { tiles[it].pointsVersion }.also {
+            it.sort()
+            tileVersions = it
+        }
+        var low = 0
+        var high = versions.size - 1
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            val value = versions[mid]
+            if (value < version) low = mid + 1 else if (value > version) high = mid - 1 else return true
+        }
+        return false
+    }
+
     /** The first tile that contains the location (the one [surfacePoint] interpolates), or null. */
     internal fun surfaceTile(latitude: Angle, longitude: Angle): TerrainTile? {
         // The terrain sector bounds every tile: locations outside it (off-screen shapes) skip the tile scan
